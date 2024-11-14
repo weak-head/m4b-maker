@@ -47,7 +47,7 @@ Create an M4B audiobook from all audio files in the `my_book` directory, using f
 create-m4b /home/user/audiobooks/my_book
 ```
 
-#### Specify Audio Quality
+### Specify Audio Quality
 
 Process the `my_book` directory with an audio quality of 96 kbps:
 

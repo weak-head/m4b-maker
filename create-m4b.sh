@@ -1,30 +1,31 @@
 #!/usr/bin/env bash
 # This script automates the creation of an M4B audiobook from various audio formats (such as MP3, WAV, and FLAC).
-# It allows for either file-based or directory-based chaptering, preserving structure by organizing chapters sequentially.
+# It supports file-based or directory-based chaptering, preserving structure by organizing chapters sequentially.
 #
 # Key Features:
 # - Accepts an audiobook directory containing multiple audio files or subdirectories for custom chaptering.
-# - Supports optional audio quality selection, defaulting to 128 kbps if not specified.
+# - Supports an optional bitrate selection for audio quality, defaulting to source bitrate if not specified.
 # - Preserves chapter information based on metadata, directory names, or filenames, organizing them in sequence.
+# - Automatically names the output file based on the input directory name.
 #
 # Usage Instructions:
-#   $> create-m4b [--directories-as-chapters] /path/to/audiobook_directory [audio_quality]
+#   $> create-m4b [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory
 #
 # Parameters:
-#   --directories-as-chapters - (Optional) When specified, treats each directory as a separate chapter.
+#   --chapters-from-dirs      - (Optional) Treats each directory as a separate chapter when specified.
 #                               Files within each directory are combined into a single chapter.
+#   --bitrate <value>         - (Optional) Desired audio bitrate for the output file, e.g., "128k" or "96k".
+#                               Defaults to the source bitrate if not provided.
 #   audiobook_directory       - Path to the directory containing audiobook files or subdirectories.
-#   audio_quality             - (Optional) Desired audio quality (bitrate) for the output file, e.g., "128k" or "96k".
-#                               Defaults to 128 kbps if not provided.
 #
 # Example Commands:
-#   $> create-m4b /home/user/audiobooks/my_book 128k
-#      This command creates a single M4B audiobook file from all audio files in the "my_book" directory
-#      with 128 kbps audio quality, using file-based chaptering.
+#   $> create-m4b /home/user/audiobooks/my_book
+#      Creates a single M4B audiobook file from all audio files in the "my_book" directory, using
+#      the default source bitrate and file-based chaptering.
 #
-#   $> create-m4b --directories-as-chapters /home/user/audiobooks/my_series
-#      This command treats each directory in "my_series" as a separate chapter, combining files within each
-#      directory into one chapter in the final M4B file, using the default audio quality of 128 kbps.
+#   $> create-m4b --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
+#      Treats each directory in "my_series" as a separate chapter, combining files within each
+#      directory into one chapter in the final M4B file, using 96 kbps audio quality.
 
 
 # Color codes for pretty print
@@ -46,11 +47,34 @@ readonly FFMPEG=$(command -v ffmpeg)
 readonly FFPROBE=$(command -v ffprobe)
 readonly MP4CHAPS=$(command -v mp4chaps)
 
+INFO_TOTAL_CHAPTERS=0
+INFO_TOTAL_DURATION=""
+
+function print_usage {
+  echo -e "\n${BLUE}Usage:${NC} $0 [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory"
+  echo -e "\n${BLUE}Parameters:${NC}"
+  echo -e "  --chapters-from-dirs      - (Optional) Treats each directory as a separate chapter when specified."
+  echo -e "                               Files within each directory are combined into a single chapter."
+  echo -e "  --bitrate <value>         - (Optional) Desired audio bitrate for the output file, e.g., \"128k\" or \"96k\"."
+  echo -e "                               Defaults to the source bitrate if not provided."
+  echo -e "  audiobook_directory       - Path to the directory containing audiobook files or subdirectories."
+  echo -e "\n${BLUE}Examples:${NC}"
+  echo -e "  $0 /home/user/audiobooks/my_book"
+  echo -e "      Creates a single M4B audiobook file from all audio files in the \"my_book\" directory,"
+  echo -e "      keeping the source bitrate and using file-based chaptering."
+  echo -e "\n  $0 --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series"
+  echo -e "      Treats each directory in \"my_series\" as a separate chapter, combining files within each"
+  echo -e "      directory into one chapter in the final M4B file, using 96 kbps audio quality."
+  echo -e "\n${BLUE}For more information, refer to the script comments.${NC}"
+}
+
 function get_chapter_name {
   local file=$1
 
+  # Try to get chapter name from MP3 'title' tag.
   local chapter_name=$(${FFMPEG} -i "${file}" 2>&1 | grep -m 1 "title" | sed 's/.*title\s*:\s*//')
 
+  # Fallback to base file name, with stripped invalid characters.
   if [ -z "${chapter_name}" ]; then
     chapter_name=$(basename "${file}" | sed 's/\.[^.]*$//' | sed 's/[<>:"/\\|?*]//g')
   fi
@@ -59,12 +83,15 @@ function get_chapter_name {
 }
 
 function convert {
-  local in_file=$1
-  local out_file=$2
-  local quality=$3
+  local in_file=$1 out_file=$2 bitrate=$3
 
-  echo -e "${BLUE}Converting ${in_file} to M4A at ${quality}...${NC}"
-  ${FFMPEG} -i "${in_file}" -c:a aac -b:a "${quality}" -vn "${out_file}" -y > /dev/null 2>&1
+  if [[ "${bitrate}" == "use-source" ]]; then
+    echo -e "${BLUE}Converting ${in_file} to M4A (lossless)...${NC}"
+    ${FFMPEG} -i "${in_file}" -c:a aac -q:a 1 -vn "${out_file}" -y > /dev/null 2>&1
+  else
+    echo -e "${BLUE}Converting ${in_file} to M4A at specified bitrate ${bitrate}...${NC}"
+    ${FFMPEG} -i "${in_file}" -c:a aac -b:a "${bitrate}" -vn "${out_file}" -y > /dev/null 2>&1
+  fi
 
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}Successfully converted to M4A.${NC}"
@@ -75,15 +102,13 @@ function convert {
 }
 
 function combine {
-  local file_order=$1
-  local final_m4a_file=$2
+  local file_order=$1 m4a_file=$2
 
   echo -e "\n${BLUE}Combining all chapters into a single M4A file...${NC}"
-
-  ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${final_m4a_file}" -y > /dev/null 2>&1
+  ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1
 
   if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Successfully combined into final M4A file.${NC}"
+    echo -e "${GREEN}Successfully combined into single M4A file.${NC}"
   else
     echo -e "${RED}Error during file concatenation!${NC}"
     exit 1
@@ -91,12 +116,10 @@ function combine {
 }
 
 function add_chapters {
-  local temp_dir=$1
-  local final_m4a_file=$2
+  local temp_dir=$1 m4a_file=$2
 
-  echo -e "\n${BLUE}Adding chapters to the final M4A file...${NC}"
-
-  (cd "${temp_dir}" && ${MP4CHAPS} -i "${final_m4a_file}" > /dev/null 2>&1)
+  echo -e "\n${BLUE}Adding chapters to the M4A file...${NC}"
+  (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1)
 
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}Chapters successfully added.${NC}"
@@ -107,28 +130,21 @@ function add_chapters {
 }
 
 function process_file_as_chapter {
-  local temp_dir=$1
-  local input_dir=$2
-  local quality=$3
-  local file_order=$4
-  local file_chapter=$5
+  local temp_dir=$1 input_dir=$2 bitrate=$3 file_order=$4 file_chapter=$5
+  local i=1 current_time=0
 
-  local i=1
-  local current_time=0
+  # Discover all audio files and process them in alphabetical order
   local audio_files=($(find "${input_dir}" -type f \
-    \( -name '*.mp3' \
-    -o -name '*.wav' \
-    -o -name '*.flac' \
-    -o -name '*.aac' \
-    -o -name '*.ogg' \
-    -o -name '*.m4a' \
+    \( -name '*.mp3' -o -name '*.wav' -o -name '*.flac' \
+    -o -name '*.aac' -o -name '*.ogg' -o -name '*.m4a' \
     -o -name '*.wma' \) | sort))
 
-  echo -e "${YELLOW}Processing files...${NC}\n"
+  INFO_TOTAL_CHAPTERS="${#audio_files[@]}"
+  echo -e "${BLUE}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+  echo -e "-----------------------------------------\n"
+
   for file in "${audio_files[@]}"; do
-    if [[ ! -f "${file}" ]]; then
-      continue
-    fi
+    [[ ! -f "$file" ]] && continue  # Skip if file does not exist
 
     chapter_name=$( get_chapter_name "${file}" )
     echo -e "${GREEN}Processing chapter:${NC} ${chapter_name}"
@@ -136,31 +152,36 @@ function process_file_as_chapter {
     output_m4a="${temp_dir}/$(basename "${file}" .${file##*.}).m4a"
     echo "file '${output_m4a}'" >> "${file_order}"
 
-    convert "${file}" "${output_m4a}" "${quality}"
+    convert "${file}" "${output_m4a}" "${bitrate}"
 
-    duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
     timestamp=$(date -ud "@${current_time}" +'%H:%M:%S.%3N')
-
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
 
+    duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
     current_time=$(echo "${current_time} + ${duration}" | bc)
     i=$((i + 1))
 
     echo -e "${YELLOW}Added chapter: '${chapter_name}' at ${timestamp}.${NC}"
     echo -e "-----------------------------------------"
   done
+
+  INFO_TOTAL_DURATION=$(date -ud "@${current_time}" +'%H hours, %M minutes')
 }
 
 function process_dirs_as_chapter {
   echo "TBD"
 }
 
-# Check for --directories-as-chapters in arguments
-USE_DIRECTORIES_AS_CHAPTERS=false
+
+CHAPTERS_FROM_DIRS=false # Default is chapter from file
+BITRATE="use-source"     # Default is use source bitrate
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    --directories-as-chapters) USE_DIRECTORIES_AS_CHAPTERS=true; shift ;;
+    --chapters-from-dirs) CHAPTERS_FROM_DIRS=true; shift ;;
+    --bitrate) BITRATE="$2"; shift 2 ;;
+    --help) print_usage; exit 0 ;;
     *) break ;;
   esac
 done
@@ -168,13 +189,13 @@ done
 # Required positional argument: audiobook directory
 if [[ "$#" -lt 1 ]]; then
   echo -e "\n${RED}Error: Input directory is required.${NC}"
-  echo -e "Usage: $0 [--directories-as-chapters] /path/to/audiobook_directory <audio_quality>\n"
+  print_usage
   exit 1
 fi
 
-if [[ "$#" -lt 1 ]]; then
-  echo -e "\n${RED}Error: Input directory is required.${NC}"
-  echo -e "Usage: $0 /path/to/audiobook_directory <audio_quality>\n"
+if [[ "$#" -gt 1 ]]; then
+  echo -e "\n${RED}Error: Unrecognized extra arguments.${NC}"
+  print_usage
   exit 1
 fi
 
@@ -184,14 +205,12 @@ if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" ]]; then
 fi
 
 readonly INPUT_DIR="$(realpath "$1")"
-readonly AUDIO_QUALITY="${2:-128k}"
+readonly OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
 
 if [[ ! -d "${INPUT_DIR}" ]]; then
   echo -e "\n${RED}Error: Input directory does not exist.${NC}"
   exit 1
 fi
-
-readonly OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
 
 readonly TEMP_DIR=$(mktemp -d)
 readonly FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
@@ -203,25 +222,26 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 > "${FILE_CHAPTER}"
 > "${FILE_ORDER}"
 
-echo -e "\n${BLUE}Starting the audiobook creation process...${NC}"
-echo -e "${BLUE}Input directory:${NC} ${INPUT_DIR}"
-echo -e "${BLUE}Output file will be saved to:${NC} ${OUTPUT_FILE}"
-echo -e "${BLUE}Use directories as chapters:${NC} ${USE_DIRECTORIES_AS_CHAPTERS}"
-echo -e "${BLUE}Audio quality set to:${NC} ${AUDIO_QUALITY}\n"
-echo -e "-----------------------------------------\n"
+echo -e "\n${BLUE}Starting audiobook creation...${NC}"
+echo -e "${BLUE}Source Directory:${NC} ${INPUT_DIR}"
+echo -e "${BLUE}Output:${NC} ${OUTPUT_FILE}"
+echo -e "${BLUE}Chapters from Subdirectories:${NC} ${CHAPTERS_FROM_DIRS}"
+echo -e "${BLUE}Bitrate:${NC} ${BITRATE}"
 
-if ${USE_DIRECTORIES_AS_CHAPTERS}; then
-  process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${AUDIO_QUALITY}" "${FILE_ORDER}" "${FILE_CHAPTER}"
+if ${CHAPTERS_FROM_DIRS}; then
+  process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 else
-  process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${AUDIO_QUALITY}" "${FILE_ORDER}" "${FILE_CHAPTER}"
+  process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 fi
 
-combine "${FILE_ORDER}" "${FINAL_M4A_FILE}" 
+combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 
 echo -e "\n${BLUE}Renaming final M4A file to M4B...${NC}"
 mv "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
 echo -e "\n${GREEN}Audiobook creation complete!${NC}"
-echo -e "${BLUE}Final M4B file saved to:${NC} ${OUTPUT_FILE}"
+echo -e "${BLUE}Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+echo -e "${BLUE}Duration:${NC} ${INFO_TOTAL_DURATION}"
+echo -e "${BLUE}Audobook saved to:${NC} ${OUTPUT_FILE}"
 echo -e "-----------------------------------------\n"
