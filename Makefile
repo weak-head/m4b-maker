@@ -4,7 +4,7 @@ all:
 
 install:
 	install -d $(DESTDIR)$(PREFIX)/sbin
-	install create-m4b.sh $(DESTDIR)$(PREFIX)/sbin/create-m4b
+	install m4bify.sh $(DESTDIR)$(PREFIX)/sbin/m4bify
 
 uninstall:
-	rm $(DESTDIR)$(PREFIX)/sbin/create-m4b
+	rm $(DESTDIR)$(PREFIX)/sbin/m4bify

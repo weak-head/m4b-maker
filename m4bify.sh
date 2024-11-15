@@ -4,12 +4,12 @@
 #
 # Key Features:
 # - Accepts an audiobook directory containing multiple audio files or subdirectories for custom chaptering.
-# - Supports an optional bitrate selection for audio quality, defaulting to source bitrate if not specified.
+# - Supports an optional bitrate selection for audio quality, defaulting to VBR Very High if not specified.
 # - Preserves chapter information based on metadata, directory names, or filenames, organizing them in sequence.
 # - Automatically names the output file based on the input directory name.
 #
 # Usage Instructions:
-#   $> create-m4b [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory
+#   $> m4bify [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory
 #
 # Parameters:
 #   --chapters-from-dirs      - (Optional) Treats each directory as a separate chapter when specified.
@@ -19,11 +19,11 @@
 #   audiobook_directory       - Path to the directory containing audiobook files or subdirectories.
 #
 # Example Commands:
-#   $> create-m4b /home/user/audiobooks/my_book
+#   $> m4bify /home/user/audiobooks/my_book
 #      Creates a single M4B audiobook file from all audio files in the "my_book" directory, using
 #      the default audio quality and file-based chaptering.
 #
-#   $> create-m4b --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
+#   $> m4bify --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
 #      Treats each directory in "my_series" as a separate chapter, combining files within each
 #      directory into one chapter in the final M4B file, using 96 kbps audio quality.
 
@@ -85,7 +85,7 @@ function get_chapter_name {
 function convert {
   local in_file=$1 out_file=$2 bitrate=$3
 
-  if [[ "${bitrate}" == "use-source" ]]; then
+  if [[ "${bitrate}" == "vbr-very-high" ]]; then
     echo -e "${BLUE}Converting '${in_file}' to M4A (AAC VBR Very High)...${NC}"
     ${FFMPEG} -i "${in_file}" -c:a aac -q:a 1 -vn "${out_file}" -y > /dev/null 2>&1
   else
@@ -227,8 +227,8 @@ function process_dirs_as_chapter {
   INFO_TOTAL_DURATION=$(date -ud "@${current_time}" +'%H hours, %M minutes')
 }
 
-CHAPTERS_FROM_DIRS=false # Default is chapter from file
-BITRATE="use-source"     # Default is use source bitrate
+CHAPTERS_FROM_DIRS=false  # Default is chapter from file
+BITRATE="vbr-very-high"   # Default is AAC VBR Very High
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -279,23 +279,27 @@ echo -e "\n${BLUE}Starting audiobook creation...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${BLUE}Source Directory:${NC} ${INPUT_DIR}"
 echo -e "${BLUE}Output File:${NC} ${OUTPUT_FILE}"
-echo -e "${BLUE}Chapters from Subdirectories:${NC} ${CHAPTERS_FROM_DIRS}"
 echo -e "${BLUE}Bitrate:${NC} ${BITRATE}"
 
 if ${CHAPTERS_FROM_DIRS}; then
+  echo -e "${BLUE}Mode:${NC} Directory-based chapters."
   process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 else
+  echo -e "${BLUE}Mode:${NC} File-based chapters."
   process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 fi
 
+# Combine all M4A files into a single file
 combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
+
+# Add chapters to the final file
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 
 echo -e "\n${BLUE}Renaming final M4A file to M4B...${NC}"
 echo -e "-----------------------------------------\n"
 mv "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
-echo -e "${GREEN}Audiobook creation complete!${NC}"
+echo -e "${GREEN}✔ Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
 echo -e "${BLUE}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
 echo -e "${BLUE}Total Duration:${NC} ${INFO_TOTAL_DURATION}"

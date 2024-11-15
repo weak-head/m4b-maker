@@ -1,4 +1,4 @@
-# M4B Audiobook Creator
+# M4B Audiobook Maker
 
 ## Overview
 
@@ -26,7 +26,7 @@ To install the script, run:
 make install
 ```
 
-This installs it to `/usr/local/sbin/create-m4b`. To change the location, adjust the `PREFIX` in the Makefile. To uninstall, use:
+This installs it to `/usr/local/sbin/m4bify`. To change the location, adjust the `PREFIX` in the Makefile. To uninstall, use:
 
 ```bash
 make uninstall
@@ -37,7 +37,7 @@ make uninstall
 Run the script with the following command:
 
 ```bash
-create-m4b [--chapters-from-dirs] [--bitrate 128k] /path/to/audiobook_directory
+m4bify [--chapters-from-dirs] [--bitrate 128k] /path/to/audiobook_directory
 ```
 
 **Options**
@@ -48,7 +48,7 @@ create-m4b [--chapters-from-dirs] [--bitrate 128k] /path/to/audiobook_directory
 For help, run:
 
 ```bash
-create-m4b --help
+m4bify --help
 ```
 
 ## Examples
@@ -56,11 +56,11 @@ create-m4b --help
 Create a single M4B file from all audio files in the "my_book" directory with default audio quality and file-based chapters:
 
 ```bash
-create-m4b /home/user/audiobooks/my_book
+m4bify /home/user/audiobooks/my_book
 ```
 
 Treat each directory in "my_series" as a chapter, using 96 kbps audio quality:
 
 ```bash
-create-m4b --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
+m4bify --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
 ```
