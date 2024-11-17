@@ -156,7 +156,11 @@ function process_file_as_chapter {
 
     convert "${file}" "${output_m4a}" "${bitrate}"
 
-    timestamp=$(date -ud "@${current_time}" +'%H:%M:%S.%3N')
+    # Format the timestamp with hours potentially exceeding 24
+    timestamp=$(printf "%02d:%02d:%06.3f\n" \
+      $(echo "${current_time} / 3600" | bc) \
+      $(echo "${current_time} % 3600 / 60" | bc) \
+      $(echo "${current_time} % 60" | bc))
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
 
@@ -168,7 +172,9 @@ function process_file_as_chapter {
     echo -e "-----------------------------------------"
   done
 
-  INFO_TOTAL_DURATION=$(date -ud "@${current_time}" +'%H hours, %M minutes')
+  INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
+      $(echo "${current_time} / 3600" | bc) \
+      $(echo "${current_time} % 3600 / 60" | bc))
 }
 
 function process_dirs_as_chapter {
@@ -213,7 +219,11 @@ function process_dirs_as_chapter {
       chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
     done
 
-    timestamp=$(date -ud "@${current_time}" +'%H:%M:%S.%3N')
+    # Format the timestamp with hours potentially exceeding 24
+    timestamp=$(printf "%02d:%02d:%06.3f\n" \
+      $(echo "${current_time} / 3600" | bc) \
+      $(echo "${current_time} % 3600 / 60" | bc) \
+      $(echo "${current_time} % 60" | bc))
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
      
@@ -224,7 +234,9 @@ function process_dirs_as_chapter {
     echo -e "-----------------------------------------"
   done
 
-  INFO_TOTAL_DURATION=$(date -ud "@${current_time}" +'%H hours, %M minutes')
+  INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
+      $(echo "${current_time} / 3600" | bc) \
+      $(echo "${current_time} % 3600 / 60" | bc))
 }
 
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
