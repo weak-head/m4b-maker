@@ -1,53 +1,71 @@
 #!/bin/bash
 
-input_dir=""
-workers=5
+ARGS=()
+WORKERS=5
 
-queue_file=$(mktemp)
-lock_file=$(mktemp)
-trap 'rm -f "${queue_file}" "${lock_file}"' EXIT
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --workers) WORKERS="$2"; shift 2 ;;
+    --) shift; ARGS=("$@"); break ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
 
-# Initialize the queue file with the list of directories
-find "${input_dir}" -mindepth 1 -maxdepth 1 -type d > "${queue_file}"
+DIRECTORY=$(realpath "${ARGS[-1]}")
+unset 'ARGS[-1]'
 
-function get_next_item {
-  local item
+echo "Workers: ${WORKERS}"
+echo "Arguments: ${ARGS[@]}"
+echo "Directory: ${DIRECTORY}"
+
+readonly TEMP_QUEUE_FILE=$(mktemp)
+readonly TEMP_LOCK_FILE=$(mktemp)
+trap 'rm -f "${TEMP_QUEUE_FILE}" "${TEMP_LOCK_FILE}"' EXIT
+
+# Discover books and initialize the queue with the list of directories
+find "${DIRECTORY}" -mindepth 1 -maxdepth 1 -type d > "${TEMP_QUEUE_FILE}"
+
+function get_next_directory {
+  local queue=$1 
+  local lock=$2
   {
     flock -x 200
-    item=$(head -n 1 "${queue_file}")
+    local item=$(head -n 1 "${queue}")
 
-    # Remove the first line from the queue
     if [[ -n $item ]]; then
-      tail -n +2 "${queue_file}" > "${queue_file}.tmp" 
-      mv "${queue_file}.tmp" "${queue_file}"
+      sed -i '1d' "${queue}"
     fi
 
     echo "${item}"
-  } 200>>"${lock_file}"
+  } 200>>"${lock}"
 }
 
 function worker {
-  local worker_id=$1
-  while true; do
-    local item
-    item=$(get_next_item)
+  local worker_id=$1 
+  local queue=$2 
+  local lock=$3
+  shift 3
+  local args=("$@") 
 
-    if [[ -z $item ]]; then
+  while true; do
+    local directory=$(get_next_directory "${queue}" "${lock}")
+
+    if [[ -z $directory ]]; then
       echo "Worker ${worker_id}: No more items to process. Exiting."
       break
     fi
 
-    # Process the item
-    echo "Worker ${worker_id}: Processing '${item}'"
+    #echo "Worker ${worker_id}: Processing '${directory}'"
+    echo "m4bify ${args[@]} '${directory}'"
 
     # Simulate work
     sleep $((RANDOM % 3 + 1))
+
   done
 }
 
-# Start workers
-for ((i = 0; i < workers; i++)); do
-  worker "${i}" &
+for ((i = 0; i < WORKERS; i++)); do
+  worker "${i}" "${TEMP_QUEUE_FILE}" "${TEMP_LOCK_FILE}" "${ARGS[@]}" &
 done
 
 wait
