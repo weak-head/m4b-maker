@@ -163,7 +163,7 @@ done
 
 # Required at least one argument: audiobook directory
 if [[ ${#ARGS[@]} -eq 0 ]]; then
-  echo -e "\n${RED}Error: Input directory is required.${NC}"
+  echo -e "\n${RED}Error: Input directory is required.${NC}\n"
   print_usage
   exit 1
 fi
