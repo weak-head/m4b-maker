@@ -1,31 +1,43 @@
 #!/usr/bin/env bash
-# This script automates the creation of an M4B audiobook from various audio formats (such as MP3, WAV, and FLAC).
-# It supports file-based or directory-based chaptering, preserving structure by organizing chapters sequentially.
+# This script automates the creation of an M4B audiobook from various audio formats (e.g., MP3, WAV, FLAC). 
+# It organizes and combines audio files into a single audiobook file with chapter markers.
 #
 # Key Features:
-# - Accepts an audiobook directory containing multiple audio files or subdirectories for custom chaptering.
-# - Supports an optional bitrate selection for audio quality, defaulting to VBR Very High if not specified.
-# - Preserves chapter information based on metadata, directory names, or filenames, organizing them in sequence.
+# - Processes audio files recursively, discovering them in all subdirectories.
+# - Files are processed in **alphabetical order** to maintain correct playback sequence.
+# - Supports chapter generation based on filenames or directory structure:
+#   - Default: Each file becomes a chapter, named based on metadata or filename.
+#   - With `--chapters-from-dirs`: Each top-level subdirectory is treated as a chapter, while its contents 
+#     (including nested subdirectories) are processed recursively as audio files.
+# - Allows custom bitrate settings for audio encoding, defaulting to high-quality AAC VBR.
 # - Automatically names the output file based on the input directory name.
+# - Provides detailed logging of chapter and duration information.
 #
 # Usage Instructions:
-#   $> m4bify [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory
+#   $> m4bify [--chapters-from-dirs] [--bitrate <value>] <audiobook_directory>
 #
-# Parameters:
-#   --chapters-from-dirs      - (Optional) Treats each directory as a separate chapter when specified.
-#                               Files within each directory are combined into a single chapter.
-#   --bitrate <value>         - (Optional) Desired audio bitrate for the output file, e.g., "128k" or "96k".
-#                               Defaults to 'AAC VBR Very High' if not provided.
-#   audiobook_directory       - Path to the directory containing audiobook files or subdirectories.
+# Options:
+#   --chapters-from-dirs      Treats each top-level subdirectory as a chapter. Audio files in these directories, 
+#                              including nested subdirectories, are combined into that chapter.
+#   --bitrate <value>         Sets the audio encoding bitrate, e.g., "128k" or "96k" (default: AAC VBR Very High).
+#   --help                    Displays usage instructions and exits.
+#
+# Arguments:
+#   <audiobook_directory>     Path to the directory containing audio files or subdirectories.
 #
 # Example Commands:
-#   $> m4bify /home/user/audiobooks/my_book
-#      Creates a single M4B audiobook file from all audio files in the "my_book" directory, using
-#      the default audio quality and file-based chaptering.
+#   $> m4bify <audiobook_directory>
+#      Combines all audio files in `<audiobook_directory>` into a single M4B audiobook, 
+#      with chapters named based on file metadata or filenames.
 #
-#   $> m4bify --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series
-#      Treats each directory in "my_series" as a separate chapter, combining files within each
-#      directory into one chapter in the final M4B file, using 96 kbps audio quality.
+#   $> m4bify --chapters-from-dirs --bitrate 96k <audiobook_directory>
+#      Combines all top-level subdirectories in `<audiobook_directory>` into separate chapters. 
+#      Files within these directories are processed recursively and alphabetically, with 96 kbps audio quality.
+#
+# Dependencies:
+# - ffmpeg       For audio conversion and merging.
+# - ffprobe      For extracting audio properties like duration.
+# - mp4chaps     For adding chapter metadata to the final M4B file.
 
 
 # Color codes for pretty print
@@ -51,21 +63,55 @@ INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
 
 function print_usage {
-  echo -e "\n${BLUE}Usage:${NC} $0 [--chapters-from-dirs] [--bitrate <value>] /path/to/audiobook_directory"
-  echo -e "\n${BLUE}Parameters:${NC}"
-  echo -e "  --chapters-from-dirs      - (Optional) Treats each directory as a separate chapter when specified."
-  echo -e "                               Files within each directory are combined into a single chapter."
-  echo -e "  --bitrate <value>         - (Optional) Desired audio bitrate for the output file, e.g., \"128k\" or \"96k\"."
-  echo -e "                               Defaults to the 'AAC VBR Very High' if not provided."
-  echo -e "  audiobook_directory       - Path to the directory containing audiobook files or subdirectories."
-  echo -e "\n${BLUE}Examples:${NC}"
-  echo -e "  $0 /home/user/audiobooks/my_book"
-  echo -e "      Creates a single M4B audiobook file from all audio files in the \"my_book\" directory,"
-  echo -e "      using default audio quality and file-based chaptering."
-  echo -e "\n  $0 --chapters-from-dirs --bitrate 96k /home/user/audiobooks/my_series"
-  echo -e "      Treats each directory in \"my_series\" as a separate chapter, combining files within each"
-  echo -e "      directory into one chapter in the final M4B file, using 96 kbps audio quality."
-  echo -e "\n${BLUE}For more information, refer to the script comments.${NC}"
+  local VERSION="v0.3.0"
+
+  echo -e "${CYAN}$(basename "$0")${NC} ${WHITE}${VERSION}${NC}"
+  echo -e ""
+  echo -e "${CYAN}Usage:${NC}"
+  echo -e "  ${BLUE}$(basename "$0") [options] <audiobook_directory>${NC}"
+  echo -e ""
+  echo -e "${CYAN}Options:${NC}"
+  echo -e "  ${BLUE}--chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
+  echo -e "                          Files within each chapter directory (including nested ones)"
+  echo -e "                          are discovered recursively and processed alphabetically."
+  echo -e "  ${BLUE}--bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
+  echo -e "                          Defaults to AAC VBR Very High quality."
+  echo -e "  ${BLUE}--help${NC}                  Display this help message and exit."
+  echo -e ""
+  echo -e "${CYAN}Arguments:${NC}"
+  echo -e "  ${BLUE}<audiobook_directory>${NC}   Path to the directory containing audiobook files or subdirectories."
+  echo -e ""
+  echo -e "${CYAN}Examples:${NC}"
+  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}/path/to/audiobook${NC}"
+  echo -e "      Combines all audio files in the \"audiobook\" directory into a single M4B audiobook."
+  echo -e "      Chapters are based on filenames or metadata, with files processed alphabetically."
+  echo -e ""
+  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}--chapters-from-dirs --bitrate 96k /path/to/audiobook${NC}"
+  echo -e "      Each top-level subdirectory in \"audiobook\" is treated as a chapter."
+  echo -e "      Files within each chapter are processed recursively and alphabetically,"
+  echo -e "      with audio encoded at 96 kbps bitrate."
+  echo -e ""
+  echo -e "${CYAN}Description:${NC}"
+  echo -e "  This script automates the creation of an M4B audiobook. It processes audio files"
+  echo -e "  recursively in the provided directory, maintaining playback order by sorting"
+  echo -e "  files alphabetically. Depending on the mode:"
+  echo -e "    - File-based chapters: Each audio file becomes a chapter."
+  echo -e "    - Directory-based chapters: Each top-level subdirectory becomes a chapter, and"
+  echo -e "      all audio files within it are combined, including files in nested subdirectories."
+  echo -e ""
+  echo -e "${CYAN}Workflow:${NC}"
+  echo -e "  1. Scans the provided audiobook directory to identify audio files or subdirectories."
+  echo -e "  2. Processes files in **alphabetical order** for consistent playback sequence."
+  echo -e "  3. Organizes files into chapters based on filenames, metadata, or directory structure."
+  echo -e "  4. Converts audio files to AAC format with the specified bitrate or default quality."
+  echo -e "  5. Combines all files into a single M4B file with chapter markers."
+  echo -e ""
+  echo -e "${CYAN}Dependencies:${NC}"
+  echo -e "  The following tools must be installed and available in your PATH:"
+  echo -e "    ${YELLOW}ffmpeg${NC}       - Required for audio format conversion."
+  echo -e "    ${YELLOW}ffprobe${NC}      - Used for analyzing audio file properties."
+  echo -e "    ${YELLOW}mp4chaps${NC}     - Needed for chapter metadata manipulation."
+  echo -e ""
 }
 
 function get_chapter_name {

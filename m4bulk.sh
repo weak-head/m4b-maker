@@ -1,47 +1,50 @@
 #!/usr/bin/env bash
-# This script simplifies and accelerates the batch conversion of audiobooks by processing directories of audio files into M4B format.
-# It utilizes the `m4bify` tool for individual conversions and supports parallel processing to maximize efficiency.
+# This script automates the batch conversion of audiobook directories to M4B format using `m4bify`, 
+# with support for parallel processing to maximize efficiency on multi-core systems. 
+# It simplifies the conversion process, ensures task distribution across worker threads, 
+# and provides detailed logging for troubleshooting and review.
 #
 # Key Features:
-# - Automatically detects audiobook directories within a specified root directory.
-# - Enables parallel processing using multiple worker threads, optimizing for available CPU cores.
-# - Supports passing custom `m4bify` options, such as chapter generation based on directories and bitrate configuration.
-# - Logs detailed conversion results for each audiobook, including success and failure summaries.
-# - Implements an intelligent task queue to distribute workloads evenly across workers.
+# - Automatically identifies audiobook directories within a specified root directory for batch processing.
+# - Allows configuration of worker threads for parallel processing, optimizing resource usage.
+# - Passes custom options directly to `m4bify`, enabling flexibility in bitrate, chapter generation, and more.
+# - Creates detailed logs for each audiobook conversion, highlighting successes and errors.
+# - Summarizes the results at the end of the process, including elapsed time, success counts, and failures.
 #
 # Usage Instructions:
-#   $> m4bulk [--workers <N>] [m4bify-options] <audiobook_root_directory>
+#   $> m4bulk [--workers <N>] [m4bify-options] <audiobooks_directory>
 #
 # Parameters:
-#   --workers <N>               - (Optional) Specifies the number of parallel workers to use. Defaults to 50% of CPU cores.
-#                                 Accepts an integer value between 1 and the total number of available CPU cores.
-#   [m4bify-options]            - Any additional options supported by `m4bify`, passed directly to the tool (e.g., bitrate, chapters).
-#   <audiobook_root_directory>  - Path to the root directory containing audiobook directories to be processed.
+#   --workers <N>           - (Optional) Number of worker threads to use. Defaults to 50% of CPU cores.
+#                             Must be an integer between 1 and the total number of available cores.
+#   [m4bify-options]        - Additional arguments supported by `m4bify`, passed directly (e.g., bitrate, chapters).
+#   <audiobooks_directory>  - The top-level directory containing audiobook subdirectories to process.
 #
-# Example Commands:
+# Examples:
 #   $> m4bulk /home/user/audiobooks/
-#      Processes all subdirectories in "/home/user/audiobooks/" with default `m4bify` options and 50% of CPU cores.
+#      Converts all subdirectories in "/home/user/audiobooks/" using default settings and 50% of CPU cores.
 #
 #   $> m4bulk --workers 4 --chapters-from-dirs --bitrate 128k /home/user/audiobooks/
-#      Uses 4 worker threads to convert all subdirectories in "/home/user/audiobooks/" to M4B format, treating
-#      each subdirectory as a chapter and setting the audio bitrate to 128 kbps.
+#      Converts audiobook directories in "/home/user/audiobooks/" with 4 worker threads, 
+#      each subdirectory treated as a chapter and audio set to 128 kbps bitrate.
 #
 # Workflow:
-# 1. Scans the provided root directory to identify audiobook subdirectories.
-# 2. Creates a processing queue and assigns tasks to worker threads for parallel execution.
-# 3. Logs the output of each conversion, capturing both successes and failures.
-# 4. Summarizes the conversion process, providing elapsed time and counts of successful and failed directories.
+# 1. Scans the specified root directory for audiobook subdirectories to convert.
+# 2. Initializes a task queue and assigns tasks across worker threads for efficient parallel processing.
+# 3. Logs conversion results, capturing outputs and errors for each audiobook directory.
+# 4. Summarizes the entire conversion process, including elapsed time and counts of successes and failures.
 #
 # Dependencies:
-# - `m4bify` must be installed and accessible in the system's PATH.
-# - The following tools are required for `m4bify` to function correctly:
-#     - `ffmpeg`    - For audio conversion and encoding.
-#     - `ffprobe`   - For analyzing audio file properties.
-#     - `mp4chaps`  - For managing chapter metadata.
+# - `m4bify`: The primary tool for audiobook conversion (must be installed and accessible in the system's PATH).
+# - Required tools for `m4bify`:
+#     - `ffmpeg`    - For audio encoding and format conversion.
+#     - `ffprobe`   - To analyze audio file properties.
+#     - `mp4chaps`  - To manage chapter metadata in M4B files.
 #
 # Notes:
-# - Ensure the necessary tools are installed before running the script.
-# - Log files for each conversion will be created in the same directory as the script for easy review.
+# - Ensure all dependencies are installed and available before running this script.
+# - Logs for each audiobook conversion will be saved in the same directory as the source audiobooks.
+# - Customize worker threads and m4bify options to optimize for system resources and project requirements.
 
 
 # Color codes for pretty print
@@ -61,45 +64,59 @@ readonly REGEX_STRIP_ANSI_EC="s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
 readonly M4BIFY=$(command -v m4bify)
 
 function print_usage {
-  local VERSION="0.3.0"
+  local VERSION="v0.3.0"
 
-  echo -e "${CYAN}$(basename "$0") - Version ${VERSION}${NC}"
+  echo -e "${CYAN}$(basename "$0")${NC} ${WHITE}${VERSION}${NC}"
   echo -e ""
   echo -e "${CYAN}Usage:${NC}"
-  echo -e "  ${BLUE}$(basename "$0") [options] <m4bify-args> source_directory${NC}"
+  echo -e "  ${BLUE}$(basename "$0") [options] [m4bify-options] <audiobooks_directory>${NC}"
   echo -e ""
   echo -e "${CYAN}Options:${NC}"
-  echo -e "  ${BLUE}--workers <N>${NC}     Number of worker processes (default: 50% of CPU cores)."
-  echo -e "  ${BLUE}--help${NC}            Display this help message and exit."
+  echo -e "  ${BLUE}--workers <N>${NC}           Number of worker threads (default: 50% of CPU cores)."
+  echo -e "                          Must be an integer between 1 and the total available CPU cores."
+  echo -e "  ${BLUE}--help${NC}                  Display this help message and exit."
   echo -e ""
   echo -e "${CYAN}Arguments:${NC}"
-  echo -e "  ${BLUE}<m4bify-args>${NC}     Optional arguments passed directly to ${YELLOW}m4bify${NC}."
-  echo -e "  ${BLUE}source_directory${NC}  The top-level directory containing subdirectories of audiobooks."
+  echo -e "  ${BLUE}[m4bify-options]${NC}        Optional arguments passed directly to ${YELLOW}m4bify${NC}."
+  echo -e "                          Examples include --bitrate <rate> or --chapters-from-dirs."
+  echo -e "  ${BLUE}<audiobooks_directory>${NC}  The root directory containing subdirectories of audiobooks to convert."
   echo -e ""
   echo -e "${CYAN}Examples:${NC}"
-  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}--workers 4 --bitrate 128k --chapters-from-dirs /path/to/audiobooks${NC}"
   echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}/path/to/audiobooks${NC}"
+  echo -e "      Converts all subdirectories in the \"audiobooks\" directory into M4B files."
+  echo -e "      The script automatically determines the optimal number of worker threads (default is 50% of available CPU cores)."
+  echo -e "      Files are processed with default settings, and no additional encoding options are applied."
+  echo -e ""
+  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}--workers 4 --bitrate 128k --chapters-from-dirs /path/to/audiobooks${NC}"
+  echo -e "      Processes all audiobook subdirectories in \"audiobooks\" using 4 worker threads."
+  echo -e "      Files are encoded at a bitrate of 128 kbps. Additionally, the script treats each top-level subdirectory as a chapter,"
+  echo -e "      and chapters are extracted based on the folder structure."
   echo -e ""
   echo -e "${CYAN}Description:${NC}"
-  echo -e "  This script automates the batch conversion of audiobook directories to M4B format using ${YELLOW}m4bify${NC}."
-  echo -e "  It processes directories in parallel with a configurable number of workers for efficient execution."
+  echo -e "  This script automates the batch conversion of audiobook directories into M4B format using ${YELLOW}m4bify${NC}."
+  echo -e "  It supports parallel processing, custom configurations, and detailed logging for efficient and reliable execution."
   echo -e ""
   echo -e "${CYAN}Workflow:${NC}"
-  echo -e "  1. Discovers audiobook directories within the specified source directory."
-  echo -e "  2. Queues directories for processing and distributes tasks across available worker threads."
-  echo -e "  3. Logs the conversion results for each directory to facilitate error tracking and review."
-  echo -e "  4. Summarizes results, including the number of successful and failed conversions and elapsed time."
+  echo -e "  1. Scans the specified root directory for audiobook subdirectories."
+  echo -e "  2. Queues directories for processing and assigns tasks to worker threads in parallel."
+  echo -e "  3. Logs conversion outputs for each audiobook directory to help identify successes or errors."
+  echo -e "  4. Summarizes the overall process, including elapsed time, success counts, and any failures."
   echo -e ""
   echo -e "${CYAN}Logging:${NC}"
-  echo -e "  Conversion logs are stored per audiobook directory and include details on success or failure."
-  echo -e "  A summary log provides an overall view of the batch processing results."
+  echo -e "  Logs are saved alongside each audiobook directory, detailing success or failure."
+  echo -e "  A summary log provides a quick overview of the batch processing results."
   echo -e ""
   echo -e "${CYAN}Dependencies:${NC}"
-  echo -e "  The following tools must be installed and available in your PATH:"
-  echo -e "    ${YELLOW}m4bify${NC}       - The primary audiobook conversion script."
-  echo -e "    ${YELLOW}ffmpeg${NC}       - Required for audio format conversion."
-  echo -e "    ${YELLOW}ffprobe${NC}      - Used for analyzing audio file properties."
-  echo -e "    ${YELLOW}mp4chaps${NC}     - Needed for chapter metadata manipulation."
+  echo -e "  This script depends on ${YELLOW}m4bify${NC}, which must be installed and accessible in your PATH."
+  echo -e "  ${YELLOW}m4bify${NC} has the following indirect dependencies:"
+  echo -e "    - ${YELLOW}ffmpeg${NC}: For audio encoding and format conversion."
+  echo -e "    - ${YELLOW}ffprobe${NC}: To analyze audio file properties."
+  echo -e "    - ${YELLOW}mp4chaps${NC}: For chapter metadata manipulation in M4B files."
+  echo -e ""
+  echo -e "${CYAN}Notes:${NC}"
+  echo -e "  - Ensure all dependencies are installed and accessible in the system's PATH."
+  echo -e "  - Logs are created in the same directory as the processed audiobooks."
+  echo -e "  - Customize the number of workers and ${YELLOW}m4bify${NC} options to suit your hardware and project requirements."
   echo -e ""
 }
 
