@@ -32,27 +32,18 @@
 
 ## Overview
 
-M4B Audiobook Maker is a set of bash scripts designed to streamline the conversion of audio files into the M4B audiobook format. The suite includes `m4bify` for single audiobook conversion and `m4bulk` for efficient batch processing, with support for parallel execution to optimize processing times on multi-core systems.
+M4B Audiobook Maker is a set of bash scripts that simplify converting audio files into the M4B audiobook format. It includes `m4bify` for single conversions and `m4bulk` for batch processing, with parallel execution to speed up multi-core systems.
 
 **Key Features**
 
 - *Single Audiobook Conversion (`m4bify`)*\
-  Convert a collection of audio files (MP3, WAV, FLAC, etc.) from a specified directory into a single M4B file, complete with chapter markers. The script processes files in alphabetical order, ensuring proper playback sequence. Chapters are created by default based on metadata or file names, or optionally by using the  `--chapters-from-dirs` flag, which treats top-level subdirectories as separate chapters.
+  Combine audio files (MP3, WAV, FLAC, etc.) from a directory into a single M4B file with chapter markers. Files are processed alphabetically to ensure the correct playback order. Chapters are auto-generated from metadata or file names, or you can use the `--chapters-from-dirs` flag to create chapters from top-level subdirectories and specify a custom bitrate with the `--bitrate` flag.
 
 - *Batch Audiobook Conversion (`m4bulk`)*\
-  Automatically scans a root directory for audiobook subdirectories and converts them into M4B files in parallel. This optimizes processing time by distributing tasks across available CPU cores. Custom options, such as bitrate and chapter settings, can be passed directly to `m4bify` for each conversion task.
-
-- *Parallel Processing*\
-  `m4bulk` supports parallel execution with customizable worker threads. This ensures that the system resources are efficiently used, and multiple audiobooks can be processed simultaneously, speeding up large batch conversions.
-
-- *Flexible Chapter Handling*\
-  Chapters can be automatically generated based on metadata, file names or directory structure. The `--chapters-from-dirs` option enables treating top-level subdirectories as chapters, with all files inside being processed recursively and alphabetically.
-
-- *Customizable Bitrate*\
-  The bitrate for audio encoding can be customized to balance file size and quality. By default, `m4bify` uses high-quality AAC VBR, but users can specify their preferred bitrate (e.g., 96k, 128k).
+  Scan a root directory for audiobook folders and convert them to M4B files in parallel. You can pass custom options like bitrate and chapter settings to `m4bify` for each task. `m4bulk` uses multiple worker threads to process audiobooks simultaneously, making batch conversions much faster.
 
 - *Detailed Logging*\
-  Both scripts generate detailed logs, capturing the success or failure of each audiobook conversion. Logs include chapter information, audio durations, and any errors encountered. After batch processing, `m4bulk` also provides a summary of the entire operation, including the elapsed time and success/failure counts.
+  Both scripts create detailed logs with chapter info, durations, and any errors. After a batch run, `m4bulk` gives a summary with success/failure counts and total processing time, while `m4bify` creates a detailed log of a single audiobook conversion.
 
 ## Getting Started
 
@@ -80,16 +71,18 @@ make uninstall
 
 ## m4bify
 
-This script automates the creation of M4B audiobooks from various audio formats, including MP3, WAV, and FLAC. It processes audio files recursively in the specified directory, ensuring playback order by sorting files alphabetically.
+`m4bify` makes it easy to turn audio files (MP3, WAV, FLAC, etc.) into M4B audiobooks. It processes files in the specified directory, sorting them alphabetically to ensure the right playback order.
 
-The script offers two processing modes for organizing chapters:
-- *File-based Chapters (Default)*: Each audio file is treated as an individual chapter, with chapter names derived from metadata or filenames.
-- *Directory-based Chapters*: Each top-level subdirectory is treated as a chapter, combining all audio files within it and its nested subdirectories into a single chapter.
+You can organize chapters in two ways:
 
-Additional features include:
-- Support for custom audio bitrate settings, with high-quality AAC VBR as the default encoding.
-- Automatic naming of the output file based on the input directory.
-- Detailed logging of chapter metadata and duration for easy review and verification.
+- *File-based Chapters (Default)*: Each audio file becomes its own chapter, named using metadata or filenames.
+- *Directory-based Chapters*: Each top-level subdirectory becomes a chapter, combining all its audio files (including those in nested folders) into one.
+
+Other features include:
+
+- Customizable audio bitrate, with high-quality AAC VBR as the default.
+- Automatic naming of the output file based on the directory name.
+- Detailed logs with chapter metadata and durations for easy reference.
 
 **Syntax**
 
@@ -109,14 +102,14 @@ m4bify [--help] [--chapters-from-dirs] [--bitrate 128k] <audiobook_directory>
 
 ## m4bulk
 
-This script automates the batch conversion of audiobook directories to M4B format, utilizing the `m4bify` tool for individual file processing. It efficiently handles multiple audiobook directories within a specified root directory, enhancing performance through parallel processing.
+`m4bulk` automates batch conversion of audiobook folders to M4B format using `m4bify`. It scans a root directory for audiobook folders and processes them efficiently with parallel execution.
 
-Major features:
+Key features:
 
-- *Optimized Parallel Processing*: Distributes conversion tasks across worker threads to utilize multi-core system resources.
-- *Customizable Conversion Settings*: Supports user-defined options for `m4bify`, offering flexibility in configuring bitrate, chapter generation, and other parameters.
-- *Automated Directory Detection*: Identifies audiobook directories within the specified root folder.
-- *Comprehensive Logging*: Generates detailed logs for each audiobook conversion, saved alongside their respective source directories for easy tracking.
+- *Parallel Processing*: Splits tasks across multiple threads to take advantage of multi-core systems.
+- *Custom Settings*: Lets you customize `m4bify` options, like bitrate and chapter generation.
+- *Automated Folder Detection*: Automatically finds audiobook directories in the root folder.
+- *Detailed Logs*: Creates logs for each conversion and saves them in the source folder for easy reference.
 
 **Syntax**
 
