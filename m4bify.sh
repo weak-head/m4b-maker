@@ -38,6 +38,7 @@
 # - ffmpeg       For audio conversion and merging.
 # - ffprobe      For extracting audio properties like duration.
 # - mp4chaps     For adding chapter metadata to the final M4B file.
+# - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
 
 # Color codes for pretty print
@@ -58,6 +59,7 @@ readonly FILE_ORDER_FILENAME="file_order.txt"
 readonly FFMPEG=$(command -v ffmpeg)
 readonly FFPROBE=$(command -v ffprobe)
 readonly MP4CHAPS=$(command -v mp4chaps)
+readonly MP4ART=$(command -v mp4art)
 
 INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
@@ -111,6 +113,7 @@ function print_usage {
   echo -e "    ${YELLOW}ffmpeg${NC}       - Required for audio format conversion."
   echo -e "    ${YELLOW}ffprobe${NC}      - Used for analyzing audio file properties."
   echo -e "    ${YELLOW}mp4chaps${NC}     - Needed for chapter metadata manipulation."
+  echo -e "    ${YELLOW}mp4art${NC}       - Adds cover image to audio book."
   echo -e ""
 }
 
@@ -143,6 +146,29 @@ function convert {
     echo -e "${GREEN}✔ Successfully converted to M4A.${NC}"
   else
     echo -e "${RED}Error during conversion!${NC}"
+    exit 1
+  fi
+}
+
+function add_cover_image {
+  local m4b_file="$1"
+  local source_folder="$2"
+
+  # Looks in the source folder for the first jpg or png file within the audiobook directory
+  local cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
+  
+  if [[ -z "${cover_image}" ]]; then
+    echo -e "\n${YELLOW}⚠ Warning: No cover image found. Skipping cover addition.${NC}"
+    return
+  fi
+
+  echo -e "\n${BLUE}Adding cover image to audiobook...${NC}"
+  ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✔ Successfully added cover image.${NC}"
+  else
+    echo -e "${RED}Error during cover image addition!${NC}"
     exit 1
   fi
 }
@@ -310,8 +336,8 @@ if [[ "$#" -gt 1 ]]; then
   exit 1
 fi
 
-if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" ]]; then
-  echo -e "${RED}Missing required binaries: ffmpeg, ffprobe, mp4chaps.${NC}"
+if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" ]]; then
+  echo -e "${RED}Missing required binaries: ffmpeg, ffprobe, mp4chaps, mp4art.${NC}"
   exit 1
 fi
 
@@ -352,6 +378,9 @@ combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 
 # Add chapters to the final file
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
+
+# Add cover image (if available)
+add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}"
 
 echo -e "\n${BLUE}Renaming final M4A file to M4B...${NC}"
 echo -e "-----------------------------------------\n"
