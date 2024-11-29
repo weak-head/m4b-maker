@@ -158,7 +158,7 @@ function add_cover_image {
   local cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
-    echo -e "\n${RED}Warning: No cover image found. Skipping cover addition.${NC}"
+    echo -e "\n${YELLOW}⚠ Warning: No cover image found. Skipping cover addition.${NC}"
     return
   fi
 
