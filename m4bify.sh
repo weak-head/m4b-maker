@@ -38,7 +38,7 @@
 # - ffmpeg       For audio conversion and merging.
 # - ffprobe      For extracting audio properties like duration.
 # - mp4chaps     For adding chapter metadata to the final M4B file.
-# - mp4art       For adding in a cover image to the final M4A file before converting it to M4B
+# - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
 
 # Color codes for pretty print
@@ -113,6 +113,7 @@ function print_usage {
   echo -e "    ${YELLOW}ffmpeg${NC}       - Required for audio format conversion."
   echo -e "    ${YELLOW}ffprobe${NC}      - Used for analyzing audio file properties."
   echo -e "    ${YELLOW}mp4chaps${NC}     - Needed for chapter metadata manipulation."
+  echo -e "    ${YELLOW}mp4art${NC}       - Adds cover image to audio book."
   echo -e ""
 }
 
@@ -157,11 +158,19 @@ function add_cover_image {
   local cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
-    echo "${RED}No cover image found. Skipping cover addition.${NC}"
+    echo -e "\n${RED}Warning: No cover image found. Skipping cover addition.${NC}"
     return
   fi
-  echo "${BLUE}Adding cover image to audiobook...${NC}"
+
+  echo -e "\n${BLUE}Adding cover image to audiobook...${NC}"
   ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✔ Successfully added cover image.${NC}"
+  else
+    echo -e "${RED}Error during cover image addition!${NC}"
+    exit 1
+  fi
 }
 
 function combine {
