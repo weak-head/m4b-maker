@@ -1,0 +1,19 @@
+name: Lint Bash Scripts
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint Bash Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint with ShellCheck
+        uses: ludeeus/action-shellcheck@v2
+        env:
+          SHELLCHECK_OPTS: -e SC2181
