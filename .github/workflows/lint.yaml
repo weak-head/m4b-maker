@@ -1,0 +1,22 @@
+name: Lint Bash Scripts
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint Bash Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Lint with ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0

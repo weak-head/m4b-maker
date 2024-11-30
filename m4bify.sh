@@ -43,7 +43,6 @@
 
 # Color codes for pretty print
 readonly NC='\033[0m'      # No Color
-readonly BLACK='\033[0;30m'
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
@@ -56,10 +55,11 @@ readonly FINAL_M4A_FILENAME="final.m4a"
 readonly CHAPTER_FILENAME="final.chapters.txt"
 readonly FILE_ORDER_FILENAME="file_order.txt"
 
-readonly FFMPEG=$(command -v ffmpeg)
-readonly FFPROBE=$(command -v ffprobe)
-readonly MP4CHAPS=$(command -v mp4chaps)
-readonly MP4ART=$(command -v mp4art)
+FFMPEG=$(command -v ffmpeg)
+FFPROBE=$(command -v ffprobe)
+MP4CHAPS=$(command -v mp4chaps)
+MP4ART=$(command -v mp4art)
+readonly FFMPEG FFPROBE MP4CHAPS MP4ART
 
 INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
@@ -119,9 +119,10 @@ function print_usage {
 
 function get_chapter_name {
   local file=$1
+  local chapter_name
 
   # Try to get chapter name from MP3 'title' tag.
-  local chapter_name=$(${FFMPEG} -i "${file}" 2>&1 | grep -m 1 "title" | sed 's/.*title\s*:\s*//')
+  chapter_name=$(${FFMPEG} -i "${file}" 2>&1 | grep -m 1 "title" | sed 's/.*title\s*:\s*//')
 
   # Fallback to base file name, with stripped invalid characters.
   if [ -z "${chapter_name}" ]; then
@@ -133,16 +134,18 @@ function get_chapter_name {
 
 function convert {
   local in_file=$1 out_file=$2 bitrate=$3
+  local quality_args
 
   if [[ "${bitrate}" == "vbr-very-high" ]]; then
+    quality_args="-q:a 1"
     echo -e "${BLUE}Converting '${in_file}' to M4A (AAC VBR Very High)...${NC}"
-    ${FFMPEG} -i "${in_file}" -c:a aac -q:a 1 -vn "${out_file}" -y > /dev/null 2>&1
   else
+    quality_args="-b:a ${bitrate}"
     echo -e "${BLUE}Converting '${in_file}' to M4A at bitrate ${bitrate}...${NC}"
-    ${FFMPEG} -i "${in_file}" -c:a aac -b:a "${bitrate}" -vn "${out_file}" -y > /dev/null 2>&1
   fi
 
-  if [ $? -eq 0 ]; then
+  # shellcheck disable=SC2086
+  if ${FFMPEG} -i "${in_file}" -c:a aac ${quality_args} -vn "${out_file}" -y > /dev/null 2>&1; then
     echo -e "${GREEN}✔ Successfully converted to M4A.${NC}"
   else
     echo -e "${RED}Error during conversion!${NC}"
@@ -151,11 +154,11 @@ function convert {
 }
 
 function add_cover_image {
-  local m4b_file="$1"
-  local source_folder="$2"
+  local m4b_file=$1 source_folder=$2
+  local cover_image
 
   # Looks in the source folder for the first jpg or png file within the audiobook directory
-  local cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
+  cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
     echo -e "\n${YELLOW}⚠ Warning: No cover image found. Skipping cover addition.${NC}"
@@ -163,9 +166,8 @@ function add_cover_image {
   fi
 
   echo -e "\n${BLUE}Adding cover image to audiobook...${NC}"
-  ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1
 
-  if [ $? -eq 0 ]; then
+  if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
     echo -e "${GREEN}✔ Successfully added cover image.${NC}"
   else
     echo -e "${RED}Error during cover image addition!${NC}"
@@ -177,9 +179,8 @@ function combine {
   local file_order=$1 m4a_file=$2
 
   echo -e "\n${BLUE}Combining all files into a single M4A file...${NC}"
-  ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1
 
-  if [ $? -eq 0 ]; then
+  if ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1; then
     echo -e "${GREEN}✔ Successfully combined all files.${NC}"
   else
     echo -e "${RED}Error during file concatenation!${NC}"
@@ -191,9 +192,8 @@ function add_chapters {
   local temp_dir=$1 m4a_file=$2
 
   echo -e "\n${BLUE}Adding chapters to the M4A file...${NC}"
-  (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1)
 
-  if [ $? -eq 0 ]; then
+  if (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1); then
     echo -e "${GREEN}✔ Chapters successfully added.${NC}"
   else
     echo -e "${RED}Error adding chapters!${NC}"
@@ -223,16 +223,16 @@ function process_file_as_chapter {
     chapter_name=$( get_chapter_name "${file}" )
     echo -e "${GREEN}Chapter ${i}:${NC} '${chapter_name}'"
 
-    output_m4a="${temp_dir}/$(basename "${file}" .${file##*.}).m4a"
+    output_m4a="${temp_dir}/$(basename "${file}" ."${file##*.}").m4a"
     echo "file '${output_m4a}'" >> "${file_order}"
 
     convert "${file}" "${output_m4a}" "${bitrate}"
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(printf "%02d:%02d:%06.3f\n" \
-      $(echo "${current_time} / 3600" | bc) \
-      $(echo "${current_time} % 3600 / 60" | bc) \
-      $(echo "${current_time} % 60" | bc))
+      "$(echo "${current_time} / 3600" | bc)" \
+      "$(echo "${current_time} % 3600 / 60" | bc)" \
+      "$(echo "${current_time} % 60" | bc)")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
 
@@ -245,8 +245,8 @@ function process_file_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      $(echo "${current_time} / 3600" | bc) \
-      $(echo "${current_time} % 3600 / 60" | bc))
+      "$(echo "${current_time} / 3600" | bc)" \
+      "$(echo "${current_time} % 3600 / 60" | bc)")
 }
 
 function process_dirs_as_chapter {
@@ -293,9 +293,9 @@ function process_dirs_as_chapter {
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(printf "%02d:%02d:%06.3f\n" \
-      $(echo "${current_time} / 3600" | bc) \
-      $(echo "${current_time} % 3600 / 60" | bc) \
-      $(echo "${current_time} % 60" | bc))
+      "$(echo "${current_time} / 3600" | bc)" \
+      "$(echo "${current_time} % 3600 / 60" | bc)" \
+      "$(echo "${current_time} % 60" | bc)")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
      
@@ -307,8 +307,8 @@ function process_dirs_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      $(echo "${current_time} / 3600" | bc) \
-      $(echo "${current_time} % 3600 / 60" | bc))
+      "$(echo "${current_time} / 3600" | bc)" \
+      "$(echo "${current_time} % 3600 / 60" | bc)")
 }
 
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
@@ -341,23 +341,25 @@ if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" ]]
   exit 1
 fi
 
-readonly INPUT_DIR="$(realpath "$1")"
-readonly OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
+INPUT_DIR="$(realpath "$1")"
+OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
+readonly INPUT_DIR OUTPUT_FILE
 
 if [[ ! -d "${INPUT_DIR}" ]]; then
   echo -e "\n${RED}Error: Input directory does not exist.${NC}"
   exit 1
 fi
 
-readonly TEMP_DIR=$(mktemp -d)
-readonly FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
-readonly FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
-readonly FILE_ORDER="${TEMP_DIR}/${FILE_ORDER_FILENAME}"
+TEMP_DIR=$(mktemp -d)
+FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
+FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
+FILE_ORDER="${TEMP_DIR}/${FILE_ORDER_FILENAME}"
+readonly TEMP_DIR FINAL_M4A_FILE FILE_CHAPTER FILE_ORDER
 
 trap 'rm -rf "${TEMP_DIR}"' EXIT
 
-> "${FILE_CHAPTER}"
-> "${FILE_ORDER}"
+touch "${FILE_CHAPTER}"
+touch "${FILE_ORDER}"
 
 echo -e "\n${BLUE}Starting audiobook creation...${NC}"
 echo -e "-----------------------------------------"
@@ -390,5 +392,5 @@ echo -e "${GREEN}✔ Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
 echo -e "${BLUE}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
 echo -e "${BLUE}Total Duration:${NC} ${INFO_TOTAL_DURATION}"
-echo -e "${BLUE}Audobook Saved To:${NC} ${OUTPUT_FILE}"
+echo -e "${BLUE}Audiobook Saved To:${NC} ${OUTPUT_FILE}"
 echo -e "-----------------------------------------\n"

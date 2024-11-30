@@ -49,7 +49,6 @@
 
 # Color codes for pretty print
 readonly NC='\033[0m'      # No Color
-readonly BLACK='\033[0;30m'
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
@@ -61,7 +60,8 @@ readonly WHITE='\033[0;37m'
 # Strip ANSI escape codes
 readonly REGEX_STRIP_ANSI_EC="s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
 
-readonly M4BIFY=$(command -v m4bify)
+M4BIFY=$(command -v m4bify)
+readonly M4BIFY
 
 function print_usage {
   local VERSION="v0.3.0"
@@ -122,9 +122,10 @@ function print_usage {
 
 function next_directory {
   local queue=$1 lock=$2
+  local directory
   {
     flock -x 200 
-    local directory=$(head -n 1 "${queue}")
+    directory=$(head -n 1 "${queue}")
 
     # If a directory is retrieved, remove it from the queue    
     if [[ -n $directory ]]; then
@@ -136,12 +137,13 @@ function next_directory {
 }
 
 function worker {
-  local id=$1 queue=$2 lock=$3; success=$4; failure=$5; shift 5
+  local queue=$2 lock=$3; success=$4; failure=$5; shift 5
   local args=("$@") 
+  local directory log_file
 
   while true; do
-    local directory=$(next_directory "${queue}" "${lock}")
-    local log_file="${directory}.log"
+    directory=$(next_directory "${queue}" "${lock}")
+    log_file="${directory}.log"
 
     # No more items to process, this worker can exit
     if [[ -z $directory ]]; then
@@ -206,17 +208,18 @@ fi
 echo -e "\n${GREEN}Starting audiobooks conversion...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${BLUE}Workers:${NC} ${WORKERS}"
-echo -e "${BLUE}Arguments:${NC} ${ARGS[@]}"
+echo -e "${BLUE}Arguments:${NC} ${ARGS[*]}"
 echo -e "${BLUE}Source Directory:${NC} ${DIRECTORY}"
 echo -e "-----------------------------------------\n"
 
-readonly TEMP_QUEUE_FILE=$(mktemp)
-readonly TEMP_LOCK_FILE=$(mktemp)
-readonly TEMP_INFO_SUCCESS_FILE=$(mktemp)
-readonly TEMP_INFO_ERROR_FILE=$(mktemp)
+TEMP_QUEUE_FILE=$(mktemp)
+TEMP_LOCK_FILE=$(mktemp)
+TEMP_INFO_SUCCESS_FILE=$(mktemp)
+TEMP_INFO_ERROR_FILE=$(mktemp)
+readonly TEMP_QUEUE_FILE TEMP_LOCK_FILE TEMP_INFO_SUCCESS_FILE TEMP_INFO_ERROR_FILE
 
-> "${TEMP_INFO_SUCCESS_FILE}"
-> "${TEMP_INFO_ERROR_FILE}"
+touch "${TEMP_INFO_SUCCESS_FILE}"
+touch "${TEMP_INFO_ERROR_FILE}"
 
 trap 'rm -f "${TEMP_QUEUE_FILE}" "${TEMP_LOCK_FILE}" "${TEMP_INFO_SUCCESS_FILE}" "${TEMP_INFO_ERROR_FILE}"' EXIT
 
