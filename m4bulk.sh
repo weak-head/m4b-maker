@@ -64,7 +64,7 @@ M4BIFY=$(command -v m4bify)
 readonly M4BIFY
 
 function print_usage {
-  local VERSION="v0.3.0"
+  local VERSION="v0.3.1"
 
   echo -e "${CYAN}$(basename "$0")${NC} ${WHITE}${VERSION}${NC}"
   echo -e ""
