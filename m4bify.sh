@@ -42,14 +42,22 @@
 
 
 # Color codes for pretty print
-readonly NC='\033[0m'      # No Color
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[0;33m'
 readonly BLUE='\033[0;34m'
-readonly MAGENTA='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly WHITE='\033[0;37m'
+
+readonly NC='\033[0m'        # No Color
+declare -A COLORS=(
+    [TITLE]='\033[0;36m'     # Cyan
+    [TEXT]='\033[0;37m'      # White
+    [CMD]='\033[0;34m'       # Blue
+    [ARGS]='\033[0;35m'      # Magenta
+    [INFO]='\033[0;34m'      # Blue
+    [WARN]='\033[0;33m'      # Yellow
+    [ERROR]='\033[0;31m'     # Red
+    [SUCCESS]='\033[0;32m'   # Green
+)
 
 readonly FINAL_M4A_FILENAME="final.m4a"
 readonly CHAPTER_FILENAME="final.chapters.txt"
@@ -67,33 +75,33 @@ INFO_TOTAL_DURATION=""
 function print_usage {
   local VERSION="v0.3.1"
 
-  echo -e "${CYAN}$(basename "$0")${NC} ${WHITE}${VERSION}${NC}"
+  echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
   echo -e ""
-  echo -e "${CYAN}Usage:${NC}"
-  echo -e "  ${BLUE}$(basename "$0") [options] <audiobook_directory>${NC}"
+  echo -e "${COLORS[TITLE]}Usage:${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}[options] <audiobook_directory>${NC}"
   echo -e ""
-  echo -e "${CYAN}Options:${NC}"
-  echo -e "  ${BLUE}--chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
+  echo -e "${COLORS[TITLE]}Options:${NC}"
+  echo -e "  ${COLORS[ARGS]}--chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
   echo -e "                          Files within each chapter directory (including nested ones)"
   echo -e "                          are discovered recursively and processed alphabetically."
-  echo -e "  ${BLUE}--bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
+  echo -e "  ${COLORS[ARGS]}--bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
   echo -e "                          Defaults to AAC VBR Very High quality."
-  echo -e "  ${BLUE}--help${NC}                  Display this help message and exit."
+  echo -e "  ${COLORS[ARGS]}--help${NC}                  Display this help message and exit."
   echo -e ""
-  echo -e "${CYAN}Arguments:${NC}"
-  echo -e "  ${BLUE}<audiobook_directory>${NC}   Path to the directory containing audiobook files or subdirectories."
+  echo -e "${COLORS[TITLE]}Arguments:${NC}"
+  echo -e "  ${COLORS[ARGS]}<audiobook_directory>${NC}   Path to the directory containing audiobook files or subdirectories."
   echo -e ""
-  echo -e "${CYAN}Examples:${NC}"
-  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}/path/to/audiobook${NC}"
+  echo -e "${COLORS[TITLE]}Examples:${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}/path/to/audiobook${NC}"
   echo -e "      Combines all audio files in the \"audiobook\" directory into a single M4B audiobook."
   echo -e "      Chapters are based on filenames or metadata, with files processed alphabetically."
   echo -e ""
-  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}--chapters-from-dirs --bitrate 96k /path/to/audiobook${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}--chapters-from-dirs --bitrate 96k /path/to/audiobook${NC}"
   echo -e "      Each top-level subdirectory in \"audiobook\" is treated as a chapter."
   echo -e "      Files within each chapter are processed recursively and alphabetically,"
   echo -e "      with audio encoded at 96 kbps bitrate."
   echo -e ""
-  echo -e "${CYAN}Description:${NC}"
+  echo -e "${COLORS[TITLE]}Description:${NC}"
   echo -e "  This script automates the creation of an M4B audiobook. It processes audio files"
   echo -e "  recursively in the provided directory, maintaining playback order by sorting"
   echo -e "  files alphabetically. Depending on the mode:"
@@ -101,19 +109,19 @@ function print_usage {
   echo -e "    - Directory-based chapters: Each top-level subdirectory becomes a chapter, and"
   echo -e "      all audio files within it are combined, including files in nested subdirectories."
   echo -e ""
-  echo -e "${CYAN}Workflow:${NC}"
+  echo -e "${COLORS[TITLE]}Workflow:${NC}"
   echo -e "  1. Scans the provided audiobook directory to identify audio files or subdirectories."
   echo -e "  2. Processes files in **alphabetical order** for consistent playback sequence."
   echo -e "  3. Organizes files into chapters based on filenames, metadata, or directory structure."
   echo -e "  4. Converts audio files to AAC format with the specified bitrate or default quality."
   echo -e "  5. Combines all files into a single M4B file with chapter markers."
   echo -e ""
-  echo -e "${CYAN}Dependencies:${NC}"
+  echo -e "${COLORS[TITLE]}Dependencies:${NC}"
   echo -e "  The following tools must be installed and available in your PATH:"
-  echo -e "    ${YELLOW}ffmpeg${NC}       - Required for audio format conversion."
-  echo -e "    ${YELLOW}ffprobe${NC}      - Used for analyzing audio file properties."
-  echo -e "    ${YELLOW}mp4chaps${NC}     - Needed for chapter metadata manipulation."
-  echo -e "    ${YELLOW}mp4art${NC}       - Adds cover image to audio book."
+  echo -e "    ${COLORS[CMD]}ffmpeg${NC}       - Required for audio format conversion."
+  echo -e "    ${COLORS[CMD]}ffprobe${NC}      - Used for analyzing audio file properties."
+  echo -e "    ${COLORS[CMD]}mp4chaps${NC}     - Needed for chapter metadata manipulation."
+  echo -e "    ${COLORS[CMD]}mp4art${NC}       - Adds cover image to audio book."
   echo -e ""
 }
 
