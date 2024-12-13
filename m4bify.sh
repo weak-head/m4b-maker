@@ -50,13 +50,12 @@ declare -A COLORS=(
     [CMD]='\033[0;34m'          # Blue
     [ARGS]='\033[0;35m'         # Magenta
     # -- conversion log
-    [SECTION]='\033[0;32m'      # Green
-    [SUBSECT]='\033[1;35m'      # Magenta (bold)
+    [SECTION]='\033[1;32m'      # Green (bold)
+    [CHAPTER]='\033[1;35m'      # Magenta (bold)
     [ACTION]='\033[0;34m⏳ '    # Blue
     [RESULT]='\033[0;36m📄 '    # Cyan
-    [PROPERTY]='\033[0;36m'     # Cyan
     # -- message severity
-    [INFO]='\033[0;34mℹ️ '       # Blue
+    [INFO]='\033[0;36mℹ️ '       # Cyan
     [WARN]='\033[0;33m⚡ '      # Yellow
     [ERROR]='\033[0;31m❌ '     # Red
     [SUCCESS]='\033[0;32m✅ '   # Green
@@ -168,15 +167,15 @@ function add_cover_image {
   local m4b_file=$1 source_folder=$2
   local cover_image
 
+  echo -e "\n${COLORS[ACTION]}Adding cover image...${NC}"
+
   # Looks in the source folder for the first jpg or png file within the audiobook directory
   cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
-    echo -e "\n${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
+    echo -e "${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
     return
   fi
-
-  echo -e "\n${COLORS[ACTION]}Adding cover image to audiobook...${NC}"
 
   if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
     echo -e "${COLORS[SUCCESS]}Successfully added cover image.${NC}"
@@ -189,7 +188,7 @@ function add_cover_image {
 function combine {
   local file_order=$1 m4a_file=$2
 
-  echo -e "\n${COLORS[ACTION]}Combining all files into a single M4A file...${NC}"
+  echo -e "\n${COLORS[ACTION]}Combining all audio files...${NC}"
 
   if ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1; then
     echo -e "${COLORS[SUCCESS]}Successfully combined all files.${NC}"
@@ -202,7 +201,7 @@ function combine {
 function add_chapters {
   local temp_dir=$1 m4a_file=$2
 
-  echo -e "\n${COLORS[ACTION]}Adding chapters to the M4A file...${NC}"
+  echo -e "\n${COLORS[ACTION]}Adding chapters...${NC}"
 
   if (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1); then
     echo -e "${COLORS[SUCCESS]}Chapters successfully added.${NC}"
@@ -223,7 +222,7 @@ function process_file_as_chapter {
     -o -name '*.wma' \) | sort)
 
   INFO_TOTAL_CHAPTERS="${#audio_files[@]}"
-  echo -e "${COLORS[PROPERTY]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+  echo -e "${COLORS[INFO]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
   echo -e "-----------------------------------------\n"
   echo -e "${COLORS[SECTION]}Processing Chapters...${NC}"
   echo -e "-----------------------------------------"
@@ -232,7 +231,7 @@ function process_file_as_chapter {
     [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
 
     chapter_name=$( get_chapter_name "${file}" )
-    echo -e "${COLORS[SUBSECT]}Chapter ${i}:${NC} '${chapter_name}'"
+    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} '${chapter_name}'"
 
     output_m4a="${temp_dir}/$(basename "${file}" ."${file##*.}").m4a"
     echo "file '${output_m4a}'" >> "${file_order}"
@@ -267,14 +266,14 @@ function process_dirs_as_chapter {
   local chapters=("${input_dir}"/*/)
 
   INFO_TOTAL_CHAPTERS="${#chapters[@]}"
-  echo -e "${COLORS[PROPERTY]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+  echo -e "${COLORS[INFO]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
   echo -e "-----------------------------------------\n"
   echo -e "${COLORS[SECTION]}Processing Chapters...${NC}"
   echo -e "-----------------------------------------"
 
   for chapter_dir in "${chapters[@]}"; do
     chapter_name=$(basename "${chapter_dir}")
-    echo -e "${COLORS[SUBSECT]}Chapter ${i}:${NC} '${chapter_name}'"
+    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} '${chapter_name}'"
 
     temp_chapter_dir="${temp_dir}/${chapter_name}"
     mkdir -p "${temp_chapter_dir}"
@@ -372,17 +371,17 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 touch "${FILE_CHAPTER}"
 touch "${FILE_ORDER}"
 
-echo -e "\n${COLORS[SECTION]}Starting audiobook creation...${NC}"
+echo -e "\n${COLORS[SECTION]}Creating Audiobook...${NC}"
 echo -e "-----------------------------------------"
-echo -e "${COLORS[PROPERTY]}Source Directory:${NC} ${INPUT_DIR}"
-echo -e "${COLORS[PROPERTY]}Output File:${NC} ${OUTPUT_FILE}"
-echo -e "${COLORS[PROPERTY]}Bitrate:${NC} ${BITRATE}"
+echo -e "${COLORS[INFO]}Source Directory:${NC} ${INPUT_DIR}"
+echo -e "${COLORS[INFO]}Output File:${NC} ${OUTPUT_FILE}"
+echo -e "${COLORS[INFO]}Bitrate:${NC} ${BITRATE}"
 
 if ${CHAPTERS_FROM_DIRS}; then
-  echo -e "${COLORS[PROPERTY]}Mode:${NC} Directory-based chapters."
+  echo -e "${COLORS[INFO]}Mode:${NC} Directory-based chapters."
   process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 else
-  echo -e "${COLORS[PROPERTY]}Mode:${NC} File-based chapters."
+  echo -e "${COLORS[INFO]}Mode:${NC} File-based chapters."
   process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 fi
 
@@ -395,13 +394,13 @@ add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}"
 
-echo -e "\n${COLORS[ACTION]}Renaming final M4A file to M4B...${NC}"
+echo -e "\n${COLORS[ACTION]}Moving audiobook...${NC}"
 echo -e "-----------------------------------------\n"
 mv "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
-echo -e "${COLORS[PROPERTY]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
-echo -e "${COLORS[PROPERTY]}Total Duration:${NC} ${INFO_TOTAL_DURATION}"
-echo -e "${COLORS[PROPERTY]}Audiobook Saved To:${NC} ${OUTPUT_FILE}"
+echo -e "${COLORS[INFO]}Length:${NC} ${INFO_TOTAL_DURATION}"
+echo -e "${COLORS[INFO]}Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+echo -e "${COLORS[INFO]}Audiobook:${NC} ${OUTPUT_FILE}"
 echo -e "-----------------------------------------\n"
