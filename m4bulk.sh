@@ -47,15 +47,25 @@
 # - Customize worker threads and m4bify options to optimize for system resources and project requirements.
 
 
-# Color codes for pretty print
-readonly NC='\033[0m'      # No Color
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[0;33m'
-readonly BLUE='\033[0;34m'
-readonly MAGENTA='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly WHITE='\033[0;37m'
+# Color schema for pretty print
+readonly NC='\033[0m'           # No Color
+declare -A COLORS=(
+    # -- print usage
+    [TITLE]='\033[0;36m'        # Cyan
+    [TEXT]='\033[0;37m'         # White
+    [CMD]='\033[0;34m'          # Blue
+    [ARGS]='\033[0;35m'         # Magenta
+    # -- conversion log
+    [SECTION]='\033[1;32m'      # Green (bold)
+    [DISCOVER]='\033[0;35m🔍 '     # Magenta
+    [ACTION]='\033[0;34m⏳ '    # Blue
+    [RESULT]='\033[0;36m📄 '    # Cyan
+    # -- message severity
+    [INFO]='\033[0;36mℹ️ '       # Cyan
+    [WARN]='\033[0;33m⚡ '      # Yellow
+    [ERROR]='\033[0;31m❌ '     # Red
+    [SUCCESS]='\033[0;32m✅ '   # Green
+)
 
 # Strip ANSI escape codes
 readonly REGEX_STRIP_ANSI_EC="s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
@@ -66,57 +76,57 @@ readonly M4BIFY
 function print_usage {
   local VERSION="v0.3.1"
 
-  echo -e "${CYAN}$(basename "$0")${NC} ${WHITE}${VERSION}${NC}"
+  echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
   echo -e ""
-  echo -e "${CYAN}Usage:${NC}"
-  echo -e "  ${BLUE}$(basename "$0") [options] [m4bify-options] <audiobooks_directory>${NC}"
+  echo -e "${COLORS[TITLE]}Usage:${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}[options] [m4bify-options] <audiobooks_directory>${NC}"
   echo -e ""
-  echo -e "${CYAN}Options:${NC}"
-  echo -e "  ${BLUE}--workers <N>${NC}           Number of worker threads (default: 50% of CPU cores)."
+  echo -e "${COLORS[TITLE]}Options:${NC}"
+  echo -e "  ${COLORS[ARGS]}--workers <N>${NC}           Number of worker threads (default: 50% of CPU cores)."
   echo -e "                          Must be an integer between 1 and the total available CPU cores."
-  echo -e "  ${BLUE}--help${NC}                  Display this help message and exit."
+  echo -e "  ${COLORS[ARGS]}--help${NC}                  Display this help message and exit."
   echo -e ""
-  echo -e "${CYAN}Arguments:${NC}"
-  echo -e "  ${BLUE}[m4bify-options]${NC}        Optional arguments passed directly to ${YELLOW}m4bify${NC}."
-  echo -e "                          Examples include --bitrate <rate> or --chapters-from-dirs."
-  echo -e "  ${BLUE}<audiobooks_directory>${NC}  The root directory containing subdirectories of audiobooks to convert."
+  echo -e "${COLORS[TITLE]}Arguments:${NC}"
+  echo -e "  ${COLORS[ARGS]}[m4bify-options]${NC}        Optional arguments passed directly to ${COLORS[CMD]}m4bify${NC}."
+  echo -e "                          Examples include ${COLORS[ARGS]}--bitrate <rate>${NC} or ${COLORS[ARGS]}--chapters-from-dirs${NC}."
+  echo -e "  ${COLORS[ARGS]}<audiobooks_directory>${NC}  The root directory containing subdirectories of audiobooks to convert."
   echo -e ""
-  echo -e "${CYAN}Examples:${NC}"
-  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}/path/to/audiobooks${NC}"
+  echo -e "${COLORS[TITLE]}Examples:${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}/path/to/audiobooks${NC}"
   echo -e "      Converts all subdirectories in the \"audiobooks\" directory into M4B files."
   echo -e "      The script automatically determines the optimal number of worker threads (default is 50% of available CPU cores)."
   echo -e "      Files are processed with default settings, and no additional encoding options are applied."
   echo -e ""
-  echo -e "  ${BLUE}$(basename "$0")${NC} ${MAGENTA}--workers 4 --bitrate 128k --chapters-from-dirs /path/to/audiobooks${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}--workers 4 --bitrate 128k --chapters-from-dirs /path/to/audiobooks${NC}"
   echo -e "      Processes all audiobook subdirectories in \"audiobooks\" using 4 worker threads."
   echo -e "      Files are encoded at a bitrate of 128 kbps. Additionally, the script treats each top-level subdirectory as a chapter,"
   echo -e "      and chapters are extracted based on the folder structure."
   echo -e ""
-  echo -e "${CYAN}Description:${NC}"
-  echo -e "  This script automates the batch conversion of audiobook directories into M4B format using ${YELLOW}m4bify${NC}."
+  echo -e "${COLORS[TITLE]}Description:${NC}"
+  echo -e "  This script automates the batch conversion of audiobook directories into M4B format using ${COLORS[CMD]}m4bify${NC}."
   echo -e "  It supports parallel processing, custom configurations, and detailed logging for efficient and reliable execution."
   echo -e ""
-  echo -e "${CYAN}Workflow:${NC}"
+  echo -e "${COLORS[TITLE]}Workflow:${NC}"
   echo -e "  1. Scans the specified root directory for audiobook subdirectories."
   echo -e "  2. Queues directories for processing and assigns tasks to worker threads in parallel."
   echo -e "  3. Logs conversion outputs for each audiobook directory to help identify successes or errors."
   echo -e "  4. Summarizes the overall process, including elapsed time, success counts, and any failures."
   echo -e ""
-  echo -e "${CYAN}Logging:${NC}"
+  echo -e "${COLORS[TITLE]}Logging:${NC}"
   echo -e "  Logs are saved alongside each audiobook directory, detailing success or failure."
   echo -e "  A summary log provides a quick overview of the batch processing results."
   echo -e ""
-  echo -e "${CYAN}Dependencies:${NC}"
-  echo -e "  This script depends on ${YELLOW}m4bify${NC}, which must be installed and accessible in your PATH."
-  echo -e "  ${YELLOW}m4bify${NC} has the following indirect dependencies:"
-  echo -e "    - ${YELLOW}ffmpeg${NC}: For audio encoding and format conversion."
-  echo -e "    - ${YELLOW}ffprobe${NC}: To analyze audio file properties."
-  echo -e "    - ${YELLOW}mp4chaps${NC}: For chapter metadata manipulation in M4B files."
+  echo -e "${COLORS[TITLE]}Dependencies:${NC}"
+  echo -e "  This script depends on ${COLORS[CMD]}m4bify${NC}, which must be installed and accessible in your PATH."
+  echo -e "  ${COLORS[CMD]}m4bify${NC} has the following indirect dependencies:"
+  echo -e "    - ${COLORS[CMD]}ffmpeg${NC}: For audio encoding and format conversion."
+  echo -e "    - ${COLORS[CMD]}ffprobe${NC}: To analyze audio file properties."
+  echo -e "    - ${COLORS[CMD]}mp4chaps${NC}: For chapter metadata manipulation in M4B files."
   echo -e ""
-  echo -e "${CYAN}Notes:${NC}"
+  echo -e "${COLORS[TITLE]}Notes:${NC}"
   echo -e "  - Ensure all dependencies are installed and accessible in the system's PATH."
   echo -e "  - Logs are created in the same directory as the processed audiobooks."
-  echo -e "  - Customize the number of workers and ${YELLOW}m4bify${NC} options to suit your hardware and project requirements."
+  echo -e "  - Customize the number of workers and ${COLORS[CMD]}m4bify${NC} options to suit your hardware and project requirements."
   echo -e ""
 }
 
@@ -150,7 +160,7 @@ function worker {
       break
     fi
 
-    echo -e "${BLUE}Processing:${NC} ${directory}"
+    echo -e "${COLORS[ACTION]}Processing:${NC} ${directory}"
 
     # Create the M4B book using m4bify, capturing the output 
     # to the log file and stripping the color codes
@@ -159,10 +169,10 @@ function worker {
 
     # Exit status of the first command (m4bify)
     if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
-      echo -e "${GREEN}✔ Completed:${NC} ${directory}"
+      echo -e "${COLORS[SUCCESS]}Completed:${NC} ${directory}"
       echo "${directory}" >> "${success}"
     else
-      echo -e "${RED}✘ Error: ${directory}${NC}"
+      echo -e "${COLORS[ERROR]}Error:${NC} ${directory}"
       echo "${directory}" >> "${failure}"
     fi
   done
@@ -182,13 +192,13 @@ done
 
 # Required at least one argument: audiobook directory
 if [[ ${#ARGS[@]} -eq 0 ]]; then
-  echo -e "\n${RED}Error: Input directory is required.${NC}\n"
+  echo -e "\n${COLORS[ERROR]}Error: Input directory is required.${NC}\n"
   print_usage
   exit 1
 fi
 
 if [[ -z "${M4BIFY}" ]]; then
-  echo -e "${RED}Missing required binaries: m4bify.${NC}"
+  echo -e "${COLORS[ERROR]}Missing required binaries: m4bify.${NC}"
   exit 1
 fi
 
@@ -196,20 +206,20 @@ DIRECTORY=$(realpath "${ARGS[-1]}")
 unset 'ARGS[-1]'
 
 if [[ ! -d "${DIRECTORY}" ]]; then
-  echo -e "\n${RED}Error: Input directory does not exist.${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Input directory does not exist.${NC}"
   exit 1
 fi
 
 if ! [[ "${WORKERS}" =~ ^[0-9]+$ ]] || ((WORKERS < 1)) || ((WORKERS > $(nproc))); then
-  echo -e "\n${RED}Error: Invalid number of workers '${WORKERS}'. Must be an integer between 1 and $(nproc).${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Invalid number of workers '${WORKERS}'. Must be an integer between 1 and $(nproc).${NC}"
   exit 1
 fi
 
-echo -e "\n${GREEN}Starting audiobooks conversion...${NC}"
+echo -e "\n${COLORS[SECTION]}Preparing conversion...${NC}"
 echo -e "-----------------------------------------"
-echo -e "${BLUE}Workers:${NC} ${WORKERS}"
-echo -e "${BLUE}Arguments:${NC} ${ARGS[*]}"
-echo -e "${BLUE}Source Directory:${NC} ${DIRECTORY}"
+echo -e "${COLORS[INFO]}Workers:${NC} ${WORKERS}"
+echo -e "${COLORS[INFO]}Arguments:${NC} ${ARGS[*]}"
+echo -e "${COLORS[INFO]}Source Directory:${NC} ${DIRECTORY}"
 echo -e "-----------------------------------------\n"
 
 TEMP_QUEUE_FILE=$(mktemp)
@@ -226,16 +236,16 @@ trap 'rm -f "${TEMP_QUEUE_FILE}" "${TEMP_LOCK_FILE}" "${TEMP_INFO_SUCCESS_FILE}"
 # Discover books and initialize the queue with the list of directories
 find "${DIRECTORY}" -mindepth 1 -maxdepth 1 -type d > "${TEMP_QUEUE_FILE}"
 
-echo -e "${GREEN}Discovering audiobooks...${NC}"
+echo -e "${COLORS[SECTION]}Discovering audiobooks...${NC}"
 echo -e "-----------------------------------------"
 
 while IFS= read -r directory; do
-  echo -e "${BLUE}Discovered:${NC} ${directory}"
+  echo -e "${COLORS[DISCOVER]}Discovered:${NC} ${directory}"
 done < "${TEMP_QUEUE_FILE}"
 
-echo -e "\n${BLUE}Total:${NC} $(awk 'END {print NR}' "${TEMP_QUEUE_FILE}")"
+echo -e "\n${COLORS[INFO]}Total:${NC} $(awk 'END {print NR}' "${TEMP_QUEUE_FILE}")"
 echo -e "-----------------------------------------\n"
-echo -e "${GREEN}Converting audiobooks...${NC}"
+echo -e "${COLORS[SECTION]}Converting audiobooks...${NC}"
 echo -e "-----------------------------------------"
 
 for ((i = 0; i < WORKERS; i++)); do
@@ -262,19 +272,19 @@ else
 fi
 
 echo -e "-----------------------------------------\n"
-echo -e "${YELLOW}Processing finished. Summary:${NC}"
+echo -e "${COLORS[SUCCESS]}Audiobooks processing finished!${NC}"
 echo -e "-----------------------------------------"
-echo -e "${BLUE}Elapsed:${NC} ${INFO_TOTAL_ELAPSED}"
-echo -e "${BLUE}Successfully converted:${NC} ${GREEN}${INFO_SUCCESS_COUNT}${NC}"
+echo -e "${COLORS[INFO]}Elapsed:${NC} ${INFO_TOTAL_ELAPSED}"
+echo -e "${COLORS[INFO]}Successfully converted:${NC} ${COLORS[SUCCESS]}${INFO_SUCCESS_COUNT}${NC}"
 
 while IFS= read -r directory; do
-  echo -e "  ${GREEN}✔${NC} ${directory}"
+  echo -e "  ${COLORS[SUCCESS]}${NC}${directory}"
 done < "${TEMP_INFO_SUCCESS_FILE}"
 
 if [[ "${INFO_ERROR_COUNT}" != "0" ]]; then
-  echo -e "${BLUE}Failed to convert:${NC} ${RED}${INFO_ERROR_COUNT}${NC}"
+  echo -e "${COLORS[INFO]}Failed to convert:${NC} ${COLORS[ERROR]}${INFO_ERROR_COUNT}${NC}"
   while IFS= read -r directory; do
-    echo -e "  ${RED}✘${NC} ${directory}"
+    echo -e "  ${COLORS[ERROR]}${NC}${directory}"
   done < "${TEMP_INFO_ERROR_FILE}"
 fi
 
