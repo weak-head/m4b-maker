@@ -211,6 +211,19 @@ function add_chapters {
   fi
 }
 
+function move_audiobook {
+  local temp_file=$1 destination=$2
+
+  echo -e "\n${COLORS[ACTION]}Moving audiobook...${NC}"
+ 
+  if mv "${temp_file}" "${destination}" > /dev/null 2>&1; then
+    echo -e "${COLORS[SUCCESS]}Audiobook successfully moved.${NC}"
+  else
+    echo -e "${COLORS[ERROR]}Error moving audiobook to the destinaton!${NC}"
+    exit 1
+  fi
+}
+
 function process_file_as_chapter {
   local temp_dir=$1 input_dir=$2 bitrate=$3 file_order=$4 file_chapter=$5
   local i=1 current_time=0
@@ -394,10 +407,10 @@ add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}"
 
-echo -e "\n${COLORS[ACTION]}Moving audiobook...${NC}"
-echo -e "-----------------------------------------\n"
-mv "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
+# Move the created audiobook to the destination
+move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
+echo -e "\n-----------------------------------------\n"
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}Length:${NC} ${INFO_TOTAL_DURATION}"
