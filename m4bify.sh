@@ -169,8 +169,12 @@ function add_cover_image {
 
   echo -e "\n${COLORS[ACTION]}Adding cover image...${NC}"
 
-  # Looks in the source folder for the first jpg or png file within the audiobook directory
-  cover_image=$(find "${source_folder}" -type f \( -iname "*.jpg" -o -iname "*.png" \) | head -n 1)
+  # Use the first image file in the source folder as cover
+  cover_image=$(find "${source_folder}" -type f \
+    -iname "*.jpg" -o -iname "*.jpeg" -o \
+    -iname "*.png" -o -iname "*.webp" -o \
+    -iname "*.bmp" -o -iname "*.tiff" \
+    | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
     echo -e "${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
