@@ -71,6 +71,7 @@ MP4CHAPS=$(command -v mp4chaps)
 MP4ART=$(command -v mp4art)
 readonly FFMPEG FFPROBE MP4CHAPS MP4ART
 
+INFO_TOTAL_SIZE=0
 INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
 
@@ -171,10 +172,9 @@ function add_cover_image {
 
   # Use the first image file in the source folder as cover
   cover_image=$(find "${source_folder}" -type f \
-    -iname "*.jpg" -o -iname "*.jpeg" -o \
-    -iname "*.png" -o -iname "*.webp" -o \
-    -iname "*.bmp" -o -iname "*.tiff" \
-    | head -n 1)
+    \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
+    -o -iname "*.webp" -o -iname "*.bmp" -o -iname "*.tiff" \
+    -o -iname "*.heic" -o -iname "*.heif" \) | head -n 1)
   
   if [[ -z "${cover_image}" ]]; then
     echo -e "${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
@@ -196,6 +196,7 @@ function combine {
 
   if ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1; then
     echo -e "${COLORS[SUCCESS]}Successfully combined all files.${NC}"
+    INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | bc) # MB
   else
     echo -e "${COLORS[ERROR]}Error during file concatenation!${NC}"
     exit 1
@@ -234,9 +235,9 @@ function process_file_as_chapter {
 
   # Discover all audio files and process them in alphabetical order
   mapfile -d $'\n' -t audio_files < <(find "${input_dir}" -type f \
-    \( -name '*.mp3' -o -name '*.wav' -o -name '*.flac' \
-    -o -name '*.aac' -o -name '*.ogg' -o -name '*.m4a' \
-    -o -name '*.wma' \) | sort)
+    \( -iname '*.mp3' -o -iname '*.wav' -o -iname '*.flac' \
+    -o -iname '*.aac' -o -iname '*.ogg' -o -iname '*.m4a' \
+    -o -iname '*.wma' \) | sort)
 
   INFO_TOTAL_CHAPTERS="${#audio_files[@]}"
   echo -e "${COLORS[INFO]}Total Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
@@ -417,7 +418,8 @@ move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 echo -e "\n-----------------------------------------\n"
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
-echo -e "${COLORS[INFO]}Length:${NC} ${INFO_TOTAL_DURATION}"
 echo -e "${COLORS[INFO]}Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+echo -e "${COLORS[INFO]}Length:${NC} ${INFO_TOTAL_DURATION}"
+echo -e "${COLORS[INFO]}Size:${NC} ${INFO_TOTAL_SIZE} MB"
 echo -e "${COLORS[INFO]}Audiobook:${NC} ${OUTPUT_FILE}"
 echo -e "-----------------------------------------\n"
