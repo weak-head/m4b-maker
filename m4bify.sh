@@ -76,7 +76,7 @@ INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
 
 function print_usage {
-  local VERSION="v0.3.1"
+  local VERSION="v0.3.2"
 
   echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
   echo -e ""
