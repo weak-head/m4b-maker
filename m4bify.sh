@@ -249,9 +249,9 @@ function process_file_as_chapter {
     [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
 
     chapter_name=$( get_chapter_name "${file}" )
-    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} '${chapter_name}'"
+    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} ${chapter_name}"
 
-    output_m4a="${temp_dir}/$(basename "${file}" ."${file##*.}").m4a"
+    output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
     echo "file '${output_m4a}'" >> "${file_order}"
 
     convert "${file}" "${output_m4a}" "${bitrate}"
@@ -291,10 +291,7 @@ function process_dirs_as_chapter {
 
   for chapter_dir in "${chapters[@]}"; do
     chapter_name=$(basename "${chapter_dir}")
-    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} '${chapter_name}'"
-
-    temp_chapter_dir="${temp_dir}/${chapter_name}"
-    mkdir -p "${temp_chapter_dir}"
+    echo -e "${COLORS[CHAPTER]}Chapter ${i}:${NC} ${chapter_name}"
 
     # Discover all audio files and process them in alphabetical order
     mapfile -d $'\n' -t audio_files < <(find "${chapter_dir}" -type f \
@@ -306,16 +303,12 @@ function process_dirs_as_chapter {
     for file in "${audio_files[@]}"; do
       [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
 
-      relative_path=$(realpath --relative-to="${input_dir}" "${file}")
-      temp_file_path="${temp_chapter_dir}/${relative_path}"
-      temp_file_path="${temp_file_path%.*}.m4a"
+      output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
+      echo "file '${output_m4a}'" >> "${file_order}"
 
-      echo "file '${temp_file_path}'" >> "${file_order}"
+      convert "${file}" "${output_m4a}" "${bitrate}"
 
-      mkdir -p "$(dirname "${temp_file_path}")"
-      convert "${file}" "${temp_file_path}" "${bitrate}"
-
-      duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${temp_file_path}" -of csv="p=0" )
+      duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
       chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
     done
 
