@@ -40,6 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
+readonly VERSION="v0.3.2"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -76,8 +77,6 @@ INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
 
 function print_usage {
-  local VERSION="v0.3.2"
-
   echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
   echo -e ""
   echo -e "${COLORS[TITLE]}Usage:${NC}"
@@ -371,6 +370,12 @@ if [[ ! -d "${INPUT_DIR}" ]]; then
   exit 1
 fi
 
+FFMPEG_VERSION=$(ffmpeg -version | head -n 1 | awk '{print $3}')
+FFPROBE_VERSION=$(ffprobe -version | head -n 1 | awk '{print $3}')
+MP4CHAPS_VERSION=$(mp4chaps --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+MP4ART_VERSION=$(mp4art --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+readonly FFMPEG_VERSION FFPROBE_VERSION MP4CHAPS_VERSION MP4ART_VERSION
+
 TEMP_DIR=$(mktemp -d)
 FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
 FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
@@ -382,6 +387,14 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 touch "${FILE_CHAPTER}"
 touch "${FILE_ORDER}"
 
+echo -e "\n${COLORS[SECTION]}Detecting Environment...${NC}"
+echo -e "-----------------------------------------"
+echo -e "${COLORS[INFO]}m4bify:${NC} ${VERSION}"
+echo -e "${COLORS[INFO]}ffmpeg:${NC} ${FFMPEG_VERSION}"
+echo -e "${COLORS[INFO]}ffprobe:${NC} ${FFPROBE_VERSION}"
+echo -e "${COLORS[INFO]}mp4chaps:${NC} ${MP4CHAPS_VERSION}"
+echo -e "${COLORS[INFO]}mp4art:${NC} ${MP4ART_VERSION}"
+echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}Creating Audiobook...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}Source Directory:${NC} ${INPUT_DIR}"
