@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.2"
+readonly VERSION="v0.3.3"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color

@@ -46,6 +46,7 @@
 # - Logs for each audiobook conversion will be saved in the same directory as the source audiobooks.
 # - Customize worker threads and m4bify options to optimize for system resources and project requirements.
 
+readonly VERSION="v0.3.3"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -74,8 +75,6 @@ M4BIFY=$(command -v m4bify)
 readonly M4BIFY
 
 function print_usage {
-  local VERSION="v0.3.2"
-
   echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
   echo -e ""
   echo -e "${COLORS[TITLE]}Usage:${NC}"
