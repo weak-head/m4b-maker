@@ -176,7 +176,7 @@ function add_cover_image {
     -o -iname "*.heic" -o -iname "*.heif" \) | head -n 1)
 
   if [[ -n "${cover_image}" ]]; then
-    echo -e "${COLORS[INFO]}Found:${NC} '${cover_image}'"
+    echo -e "${COLORS[INFO]}Using cover image${NC} '${cover_image}'"
   else
     echo -e "${COLORS[INFO]}No cover image file.${NC}"
 
@@ -195,7 +195,7 @@ function add_cover_image {
         -of default=noprint_wrappers=1:nokey=1 "${file}")
 
       if [[ -n "${image_codec}" ]]; then
-        echo -e "${COLORS[INFO]}Extracting embedded art from${NC} '${file}' [${image_codec}]"
+        echo -e "${COLORS[INFO]}Using embedded art from${NC} '${file}' [${image_codec}]"
 
         case "${image_codec}" in
           mjpeg|jpeg) image_ext="jpg" ;;
@@ -214,13 +214,13 @@ function add_cover_image {
         if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
           break
         else
-          echo -e "${COLORS[WARN]}Warning: Failed to extract embedded cover image.${NC}"
+          echo -e "${COLORS[WARN]}Warning: Failed to extract the embedded cover.${NC}"
         fi
       fi
     done
   fi
 
-  # Embed cover image into the final m4b
+  # Embed the cover image file into the m4b audiobook
   if [[ -f "${cover_image}" ]]; then
     if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
       echo -e "${COLORS[SUCCESS]}Successfully added cover art.${NC}"
@@ -229,7 +229,7 @@ function add_cover_image {
       exit 1
     fi
   else
-    echo -e "${COLORS[INFO]}No embedded cover art in audio files.${NC}"
+    echo -e "${COLORS[INFO]}No supported embedded cover art.${NC}"
     echo -e "${COLORS[WARN]}Warning: Skipped cover art addition.${NC}"
   fi
 }
