@@ -164,27 +164,73 @@ function convert {
 }
 
 function add_cover_image {
-  local m4b_file=$1 source_folder=$2
-  local cover_image
+  local m4b_file=$1 source_dir=$2 temp_dir=$3
+  local cover_image image_ext
 
   echo -e "\n${COLORS[ACTION]}Adding cover image...${NC}"
 
   # Use the first image file in the source folder as cover
-  cover_image=$(find "${source_folder}" -type f \
+  cover_image=$(find "${source_dir}" -type f \
     \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
     -o -iname "*.webp" -o -iname "*.bmp" -o -iname "*.tiff" \
     -o -iname "*.heic" -o -iname "*.heif" \) | head -n 1)
-  
-  if [[ -z "${cover_image}" ]]; then
-    echo -e "${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
-    return
+
+  if [[ -n "${cover_image}" ]]; then
+    echo -e "${COLORS[INFO]}Using cover image${NC} '${cover_image}'"
+  else
+    echo -e "${COLORS[INFO]}No cover image file.${NC}"
+
+    # If there is no image file, try to extract an embedded cover art from the audio files
+    mapfile -d $'\n' -t audio_files < <(find "${source_dir}" -type f \
+      \( -name '*.mp3' -o -name '*.wav' -o -name '*.flac' \
+      -o -name '*.aac' -o -name '*.ogg' -o -name '*.m4a' \
+      -o -name '*.wma' \) | sort)
+
+    for file in "${audio_files[@]}"; do
+      [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
+
+      # Check for the embedded cover art
+      image_codec=$(ffprobe -v quiet \
+        -select_streams v:0 -show_entries stream=codec_name \
+        -of default=noprint_wrappers=1:nokey=1 "${file}")
+
+      if [[ -n "${image_codec}" ]]; then
+        echo -e "${COLORS[INFO]}Using embedded art from${NC} '${file}' [${image_codec}]"
+
+        case "${image_codec}" in
+          mjpeg|jpeg) image_ext="jpg" ;;
+          png) image_ext="png" ;;
+          bmp) image_ext="bmp" ;;
+          gif) image_ext="gif" ;;
+          tiff) image_ext="tiff" ;;
+          webp) image_ext="webp" ;;
+          heif|heic) image_ext="heic" ;;
+          *) image_ext="img" ;;  # Unknown or unsupported image codecs
+        esac
+
+        cover_image="${temp_dir}/cover.${image_ext}"
+
+        # Extract cover image from the audio file
+        if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
+          break
+        else
+          echo -e "${COLORS[WARN]}Warning: Failed to extract the embedded cover.${NC}"
+        fi
+      fi
+    done
   fi
 
-  if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
-    echo -e "${COLORS[SUCCESS]}Successfully added cover image.${NC}"
+  # Embed the cover image file into the m4b audiobook
+  if [[ -f "${cover_image}" ]]; then
+    if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
+      echo -e "${COLORS[SUCCESS]}Successfully added cover art.${NC}"
+    else
+      echo -e "${COLORS[ERROR]}Error during cover art addition!${NC}"
+      exit 1
+    fi
   else
-    echo -e "${COLORS[ERROR]}Error during cover image addition!${NC}"
-    exit 1
+    echo -e "${COLORS[INFO]}No supported embedded cover art.${NC}"
+    echo -e "${COLORS[WARN]}Warning: Skipped cover art addition.${NC}"
   fi
 }
 
@@ -416,7 +462,7 @@ combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 
 # Add cover image (if available)
-add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}"
+add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
