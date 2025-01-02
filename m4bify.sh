@@ -164,27 +164,68 @@ function convert {
 }
 
 function add_cover_image {
-  local m4b_file=$1 source_folder=$2
-  local cover_image
+  local m4b_file=$1 source_dir=$2 temp_dir=$3
+  local cover_image image_ext
 
   echo -e "\n${COLORS[ACTION]}Adding cover image...${NC}"
 
   # Use the first image file in the source folder as cover
-  cover_image=$(find "${source_folder}" -type f \
+  cover_image=$(find "${source_dir}" -type f \
     \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
     -o -iname "*.webp" -o -iname "*.bmp" -o -iname "*.tiff" \
     -o -iname "*.heic" -o -iname "*.heif" \) | head -n 1)
-  
-  if [[ -z "${cover_image}" ]]; then
-    echo -e "${COLORS[WARN]}Warning: No cover image found. Skipping cover addition.${NC}"
-    return
+
+  if [[ -n "${cover_image}" ]]; then
+    echo -e "${COLORS[INFO]}Found:${NC} '${cover_image}'"
+  else
+    echo -e "${COLORS[INFO]}No cover image file.${NC}"
+
+    # If there is no image file, try to extract a cover art from the audio files
+    mapfile -d $'\n' -t audio_files < <(find "${source_dir}" -type f \
+      \( -name '*.mp3' -o -name '*.wav' -o -name '*.flac' \
+      -o -name '*.aac' -o -name '*.ogg' -o -name '*.m4a' \
+      -o -name '*.wma' \) | sort)
+
+    for file in "${audio_files[@]}"; do
+      [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
+
+      # Check for cover art and the image codec
+      image_codec=$(ffprobe -v quiet \
+        -select_streams v:0 -show_entries stream=codec_name \
+        -of default=noprint_wrappers=1:nokey=1 "${file}")
+
+      if [[ -n "${image_codec}" ]]; then
+        echo -e "${COLORS[INFO]}Extracting from:${NC} '${file}'"
+
+        case "${image_codec}" in
+          mjpeg) image_ext="jpg" ;;
+          png) image_ext="png" ;;
+          *) image_ext="img" ;;  # Unknown image codecs
+        esac
+
+        cover_image=$(mktemp "${temp_dir}/cover_XXX.${image_ext}")
+
+        # Extract cover image from audio file
+        if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
+          break
+        fi
+
+        cover_image=""
+        echo -e "${COLORS[WARN]}Warning: Failed to extract cover image.${NC}"
+      fi
+    done
   fi
 
-  if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
-    echo -e "${COLORS[SUCCESS]}Successfully added cover image.${NC}"
+  if [[ -n "${cover_image}" ]]; then
+    if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
+      echo -e "${COLORS[SUCCESS]}Successfully added cover art.${NC}"
+    else
+      echo -e "${COLORS[ERROR]}Error during cover art addition!${NC}"
+      exit 1
+    fi
   else
-    echo -e "${COLORS[ERROR]}Error during cover image addition!${NC}"
-    exit 1
+    echo -e "${COLORS[INFO]}No cover art in audio files.${NC}"
+    echo -e "${COLORS[WARN]}Warning: Skipping cover addition.${NC}"
   fi
 }
 
@@ -416,7 +457,7 @@ combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 
 # Add cover image (if available)
-add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}"
+add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
