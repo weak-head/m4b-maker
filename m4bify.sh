@@ -180,7 +180,7 @@ function add_cover_image {
   else
     echo -e "${COLORS[INFO]}No cover image file.${NC}"
 
-    # If there is no image file, try to extract a cover art from the audio files
+    # If there is no image file, try to extract an embedded cover art from the audio files
     mapfile -d $'\n' -t audio_files < <(find "${source_dir}" -type f \
       \( -name '*.mp3' -o -name '*.wav' -o -name '*.flac' \
       -o -name '*.aac' -o -name '*.ogg' -o -name '*.m4a' \
@@ -189,34 +189,39 @@ function add_cover_image {
     for file in "${audio_files[@]}"; do
       [[ ! -f "${file}" ]] && continue  # Skip if file does not exist
 
-      # Check for cover art and the image codec
+      # Check for the embedded cover art
       image_codec=$(ffprobe -v quiet \
         -select_streams v:0 -show_entries stream=codec_name \
         -of default=noprint_wrappers=1:nokey=1 "${file}")
 
       if [[ -n "${image_codec}" ]]; then
-        echo -e "${COLORS[INFO]}Extracting from:${NC} '${file}'"
+        echo -e "${COLORS[INFO]}Extracting embedded art from${NC} '${file}' [${image_codec}]"
 
         case "${image_codec}" in
-          mjpeg) image_ext="jpg" ;;
+          mjpeg|jpeg) image_ext="jpg" ;;
           png) image_ext="png" ;;
-          *) image_ext="img" ;;  # Unknown image codecs
+          bmp) image_ext="bmp" ;;
+          gif) image_ext="gif" ;;
+          tiff) image_ext="tiff" ;;
+          webp) image_ext="webp" ;;
+          heif|heic) image_ext="heic" ;;
+          *) image_ext="img" ;;  # Unknown or unsupported image codecs
         esac
 
-        cover_image=$(mktemp "${temp_dir}/cover_XXX.${image_ext}")
+        cover_image="${temp_dir}/cover.${image_ext}"
 
-        # Extract cover image from audio file
+        # Extract cover image from the audio file
         if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
           break
+        else
+          echo -e "${COLORS[WARN]}Warning: Failed to extract embedded cover image.${NC}"
         fi
-
-        cover_image=""
-        echo -e "${COLORS[WARN]}Warning: Failed to extract cover image.${NC}"
       fi
     done
   fi
 
-  if [[ -n "${cover_image}" ]]; then
+  # Embed cover image into the final m4b
+  if [[ -f "${cover_image}" ]]; then
     if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
       echo -e "${COLORS[SUCCESS]}Successfully added cover art.${NC}"
     else
@@ -224,8 +229,8 @@ function add_cover_image {
       exit 1
     fi
   else
-    echo -e "${COLORS[INFO]}No cover art in audio files.${NC}"
-    echo -e "${COLORS[WARN]}Warning: Skipping cover addition.${NC}"
+    echo -e "${COLORS[INFO]}No embedded cover art in audio files.${NC}"
+    echo -e "${COLORS[WARN]}Warning: Skipped cover art addition.${NC}"
   fi
 }
 
