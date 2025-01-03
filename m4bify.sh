@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.3"
+readonly VERSION="v0.3.4"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -71,6 +71,32 @@ FFPROBE=$(command -v ffprobe)
 MP4CHAPS=$(command -v mp4chaps)
 MP4ART=$(command -v mp4art)
 readonly FFMPEG FFPROBE MP4CHAPS MP4ART
+
+# libfdk_acc VBR Quality Profiles
+# Profile  | Bitrate Range (kbps) | Description
+# ---------|-----------------------|--------------------------
+#    0     | ~20–40                | Very low quality
+#    1     | ~32–64                | Low quality
+#    2     | ~48–96                | Medium quality
+#    3     | ~64–128               | High quality
+#    4     | ~96–192               | Very high quality (recommended)
+#    5     | ~128–256              | Highest quality
+LIBFDK_VBR_PROFILE=4 # Default: Very high quality (profile 4)
+
+# aac VBR Quality Profiles
+# Profile  | Bitrate Range (kbps) | Description
+# ---------|-----------------------|--------------------------
+#    0     | 220–260              | Highest quality
+#    1     | 190–250              | Very high quality (default)
+#    2     | 170–210              | High quality (recommended)
+#    3     | 150–195              | Medium quality
+#    4     | 130–175              | Standard quality
+#    5     | 110–145              | Lower quality
+#    6     |  90–130              | Low quality
+#    7     |  80–120              | Very low quality
+#    8     |  70–105              | Poor quality
+#    9     |  65–85               | Lowest quality
+AAC_VBR_PROFILE=1 # Default: Very high quality (profile 1)
 
 INFO_TOTAL_SIZE=0
 INFO_TOTAL_CHAPTERS=0
@@ -144,21 +170,33 @@ function get_chapter_name {
 
 function convert {
   local in_file=$1 out_file=$2 bitrate=$3
-  local quality_args
+  local quality=""
+  local codec="aac" # Native FFmpeg AAC audio codec
 
-  if [[ "${bitrate}" == "vbr-very-high" ]]; then
-    quality_args="-q:a 1"
-    echo -e "${COLORS[ACTION]}Converting '${in_file}' to M4A (AAC VBR Very High)...${NC}"
+  # Use libfdk_aac codec, if available
+  if ${FFMPEG} -version | grep -q "enable-libfdk-aac"; then
+    codec="libfdk_aac"
+  fi
+
+  # Select quality options
+  if [[ "${bitrate}" == "vbr" ]]; then
+    if [[ "${codec}" == "libfdk_aac" ]]; then
+      quality="-vbr ${LIBFDK_VBR_PROFILE}"
+      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${LIBFDK_VBR_PROFILE}]...${NC}"
+    else
+      quality="-q:a ${AAC_VBR_PROFILE}"
+      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${AAC_VBR_PROFILE}]...${NC}"
+    fi
   else
-    quality_args="-b:a ${bitrate}"
-    echo -e "${COLORS[ACTION]}Converting '${in_file}' to M4A at bitrate ${bitrate}...${NC}"
+    quality="-b:a ${bitrate}"
+    echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} cbr ${bitrate}]...${NC}"
   fi
 
   # shellcheck disable=SC2086
-  if ${FFMPEG} -i "${in_file}" -c:a aac ${quality_args} -vn "${out_file}" -y > /dev/null 2>&1; then
-    echo -e "${COLORS[SUCCESS]}Successfully converted to M4A.${NC}"
+  if ${FFMPEG} -i "${in_file}" -c:a "${codec}" ${quality} -vn "${out_file}" -y > /dev/null 2>&1; then
+    echo -e "${COLORS[SUCCESS]}Successfully encoded.${NC}"
   else
-    echo -e "${COLORS[ERROR]}Error during conversion!${NC}"
+    echo -e "${COLORS[ERROR]}Failed to encode!${NC}"
     exit 1
   fi
 }
@@ -378,7 +416,7 @@ function process_dirs_as_chapter {
 }
 
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
-BITRATE="vbr-very-high"   # Default is AAC VBR Very High
+BITRATE="vbr"             # Default is VBR
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -422,6 +460,12 @@ MP4CHAPS_VERSION=$(mp4chaps --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 MP4ART_VERSION=$(mp4art --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 readonly FFMPEG_VERSION FFPROBE_VERSION MP4CHAPS_VERSION MP4ART_VERSION
 
+FFMPEG_OPTIONS=""
+if ${FFMPEG} -version | grep -q "enable-libfdk-aac"; then
+  FFMPEG_OPTIONS=" (libfdk_aac)"
+fi
+readonly FFMPEG_OPTIONS
+
 TEMP_DIR=$(mktemp -d)
 FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
 FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
@@ -436,7 +480,7 @@ touch "${FILE_ORDER}"
 echo -e "\n${COLORS[SECTION]}Detecting Environment...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}m4bify:${NC} ${VERSION}"
-echo -e "${COLORS[INFO]}ffmpeg:${NC} ${FFMPEG_VERSION}"
+echo -e "${COLORS[INFO]}ffmpeg:${NC} ${FFMPEG_VERSION}${FFMPEG_OPTIONS}"
 echo -e "${COLORS[INFO]}ffprobe:${NC} ${FFPROBE_VERSION}"
 echo -e "${COLORS[INFO]}mp4chaps:${NC} ${MP4CHAPS_VERSION}"
 echo -e "${COLORS[INFO]}mp4art:${NC} ${MP4ART_VERSION}"
@@ -448,10 +492,10 @@ echo -e "${COLORS[INFO]}Output File:${NC} ${OUTPUT_FILE}"
 echo -e "${COLORS[INFO]}Bitrate:${NC} ${BITRATE}"
 
 if ${CHAPTERS_FROM_DIRS}; then
-  echo -e "${COLORS[INFO]}Mode:${NC} Directory-based chapters."
+  echo -e "${COLORS[INFO]}Mode:${NC} Directory-based chapters"
   process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 else
-  echo -e "${COLORS[INFO]}Mode:${NC} File-based chapters."
+  echo -e "${COLORS[INFO]}Mode:${NC} File-based chapters"
   process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 fi
 
