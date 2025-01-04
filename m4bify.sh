@@ -274,19 +274,23 @@ function add_cover_image {
 
 function add_metadata {
   local m4b_file=$1 source_dir=$2 temp_dir=$3
-  local dir_name=$(basename "${source_dir%/}")
-  local author title date
+  local dir_name author title date
 
-  regex_1='^(.+) [-:_] (.+) \(([0-9]{4})\)$'  # "Author Name - Book Title (1939)"
-  regex_2='^(.+) [-:_] (.+) \[([0-9]{4})\]$'  # "Author Name _ Book Title [1939]"
-  regex_3='^(.+) [-:_] (.+)$'                 # "Author Name : Book Title"
+  local regex_1='^(.+) [-:_] (.+) \(([0-9]{4})\)$'  # "Author Name - Book Title (1939)"
+  local regex_2='^(.+) [-:_] (.+) \[([0-9]{4})\]$'  # "Author Name _ Book Title [1939]"
+  local regex_3='^(.+) \(([0-9]{4})\)$'             # "Book Title (1939)"
+  local regex_4='^(.+) \[([0-9]{4})\]$'             # "Book Title [1939]"
+  local regex_5='^(.+) [-:_] (.+)$'                 # "Author Name : Book Title"
 
   echo -e "\n${COLORS[ACTION]}Extracting metadata...${NC}"
+  dir_name=$(basename "${source_dir%/}")
 
   # Try to extract audiobook metadata from directory name
   if [[ ${dir_name} =~ ${regex_1} || ${dir_name} =~ ${regex_2} ]]; then
     author="${BASH_REMATCH[1]}"; title="${BASH_REMATCH[2]}"; date="${BASH_REMATCH[3]}"
-  elif [[ ${dir_name} =~ ${regex_3} ]]; then
+  elif [[ ${dir_name} =~ ${regex_3} || ${dir_name} =~ ${regex_4} ]]; then
+    title="${BASH_REMATCH[1]}"; date="${BASH_REMATCH[2]}"; author=""
+  elif [[ ${dir_name} =~ ${regex_5} ]]; then
     author="${BASH_REMATCH[1]}"; title="${BASH_REMATCH[2]}"; date=""
   else
     echo -e "${COLORS[INFO]}No matching pattern for directory name.${NC}"
