@@ -153,6 +153,20 @@ function print_usage {
   echo -e ""
 }
 
+function get_relative_path {
+  local parent_path=$1 nested_path=$2
+
+  parent_real=$(realpath "${parent_path}")
+  nested_real=$(realpath "${nested_path}")
+
+  if [[ "${nested_real}" == "${parent_real}"* ]]; then
+    rel_path="${nested_real#"$parent_real/"}"
+    echo "${rel_path}"
+  else
+    echo "${nested_path}"
+  fi
+}
+
 function get_chapter_name {
   local file=$1
   local chapter_name
@@ -169,7 +183,7 @@ function get_chapter_name {
 }
 
 function convert {
-  local in_file=$1 out_file=$2 bitrate=$3
+  local in_file=$1 out_file=$2 bitrate=$3 path_info=$4
   local quality=""
   local codec="aac" # Native FFmpeg AAC audio codec
 
@@ -182,14 +196,14 @@ function convert {
   if [[ "${bitrate}" == "vbr" ]]; then
     if [[ "${codec}" == "libfdk_aac" ]]; then
       quality="-vbr ${LIBFDK_VBR_PROFILE}"
-      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${LIBFDK_VBR_PROFILE}]...${NC}"
+      echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} vbr ${LIBFDK_VBR_PROFILE}]${NC}"
     else
       quality="-q:a ${AAC_VBR_PROFILE}"
-      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${AAC_VBR_PROFILE}]...${NC}"
+      echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} vbr ${AAC_VBR_PROFILE}]${NC}"
     fi
   else
     quality="-b:a ${bitrate}"
-    echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} cbr ${bitrate}]...${NC}"
+    echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} cbr ${bitrate}]${NC}"
   fi
 
   # shellcheck disable=SC2086
@@ -384,7 +398,8 @@ function process_file_as_chapter {
     output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
     echo "file '${output_m4a}'" >> "${file_order}"
 
-    convert "${file}" "${output_m4a}" "${bitrate}"
+    rel_path=$( get_relative_path "${input_dir}" "${file}" )
+    convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(printf "%02d:%02d:%06.3f\n" \
@@ -436,7 +451,8 @@ function process_dirs_as_chapter {
       output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
       echo "file '${output_m4a}'" >> "${file_order}"
 
-      convert "${file}" "${output_m4a}" "${bitrate}"
+      rel_path=$( get_relative_path "${input_dir}" "${file}" )
+      convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
       duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
       chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
