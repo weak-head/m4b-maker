@@ -272,6 +272,49 @@ function add_cover_image {
   fi
 }
 
+function add_metadata {
+  local m4b_file=$1 source_dir=$2 temp_dir=$3
+  local dir_name=$(basename "${source_dir%/}")
+  local author title date
+
+  regex_1='^(.+) [-:_] (.+) \(([0-9]{4})\)$'  # "Author Name - Book Title (1939)"
+  regex_2='^(.+) [-:_] (.+) \[([0-9]{4})\]$'  # "Author Name _ Book Title [1939]"
+  regex_3='^(.+) [-:_] (.+)$'                 # "Author Name : Book Title"
+
+  echo -e "\n${COLORS[ACTION]}Extracting metadata...${NC}"
+
+  # Try to extract audiobook metadata from directory name
+  if [[ ${dir_name} =~ ${regex_1} || ${dir_name} =~ ${regex_2} ]]; then
+    author="${BASH_REMATCH[1]}"; title="${BASH_REMATCH[2]}"; date="${BASH_REMATCH[3]}"
+  elif [[ ${dir_name} =~ ${regex_3} ]]; then
+    author="${BASH_REMATCH[1]}"; title="${BASH_REMATCH[2]}"; date=""
+  else
+    echo -e "${COLORS[INFO]}No matching pattern for directory name.${NC}"
+  fi
+
+  if [[ -n "${title}" ]]; then
+    original_m4a="${temp_dir}/final.untagged.m4a"
+    mv "${m4b_file}" "${original_m4a}"
+
+    echo -e "${COLORS[INFO]}Author:${NC} ${author}"
+    echo -e "${COLORS[INFO]}Title:${NC} ${title}"
+    echo -e "${COLORS[INFO]}Date:${NC} ${date}"
+
+    if ${FFMPEG} -i "${original_m4a}" \
+        -metadata title="${title}" -metadata album="${title}" \
+        -metadata artist="${author}" -metadata album_artist="${author}" \
+        -metadata date="${date}" -metadata genre="Audiobook" \
+        -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
+      echo -e "${COLORS[SUCCESS]}Metadata successfully embedded.${NC}"
+    else
+      echo -e "${COLORS[ERROR]}Error: Failed to embed metadata.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${COLORS[WARN]}Warning: Skipped metadata extraction.${NC}"
+  fi
+}
+
 function combine {
   local file_order=$1 m4a_file=$2
 
@@ -507,6 +550,9 @@ add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
+
+# Add audiobook ID3 tags
+add_metadata "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
