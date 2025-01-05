@@ -114,22 +114,22 @@ function print_usage {
   echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}[options] <audiobook_directory>${NC}"
   echo -e ""
   echo -e "${COLORS[TITLE]}Options:${NC}"
-  echo -e "  ${COLORS[ARGS]}--chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
-  echo -e "                          Files within each chapter directory (including nested ones)"
-  echo -e "                          are discovered recursively and processed alphabetically."
-  echo -e "  ${COLORS[ARGS]}--bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
-  echo -e "                          Defaults to AAC VBR Very High quality."
-  echo -e "  ${COLORS[ARGS]}--help${NC}                  Display this help message and exit."
+  echo -e "  ${COLORS[ARGS]}-d, --chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
+  echo -e "                              Files within each chapter directory (including nested ones)"
+  echo -e "                              are discovered recursively and processed alphabetically."
+  echo -e "  ${COLORS[ARGS]}-b, --bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
+  echo -e "                              Defaults to AAC VBR Very High quality."
+  echo -e "  ${COLORS[ARGS]}--help${NC}                      Display this help message and exit."
   echo -e ""
   echo -e "${COLORS[TITLE]}Arguments:${NC}"
-  echo -e "  ${COLORS[ARGS]}<audiobook_directory>${NC}   Path to the directory containing audiobook files or subdirectories."
+  echo -e "  ${COLORS[ARGS]}<audiobook_directory>${NC}       Path to the directory containing audiobook files or subdirectories."
   echo -e ""
   echo -e "${COLORS[TITLE]}Examples:${NC}"
   echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}/path/to/audiobook${NC}"
   echo -e "      Combines all audio files in the \"audiobook\" directory into a single M4B audiobook."
   echo -e "      Chapters are based on filenames or metadata, with files processed alphabetically."
   echo -e ""
-  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}--chapters-from-dirs --bitrate 96k /path/to/audiobook${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}--chapters-from-dirs -b 96k /path/to/audiobook${NC}"
   echo -e "      Each top-level subdirectory in \"audiobook\" is treated as a chapter."
   echo -e "      Files within each chapter are processed recursively and alphabetically,"
   echo -e "      with audio encoded at 96 kbps bitrate."
@@ -496,8 +496,8 @@ BITRATE="vbr"             # Default is VBR
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    --chapters-from-dirs) CHAPTERS_FROM_DIRS=true; shift ;;
-    --bitrate) BITRATE="$2"; shift 2 ;;
+    -d|--chapters-from-dirs) CHAPTERS_FROM_DIRS=true; shift ;;
+    -b|--bitrate) BITRATE="$2"; shift 2 ;;
     --help) print_usage; exit 0 ;;
     *) break ;;
   esac
@@ -505,13 +505,13 @@ done
 
 # Required positional argument: audiobook directory
 if [[ "$#" -lt 1 ]]; then
-  echo -e "\n${COLORS[ERROR]}Error: Input directory is required.${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Input directory is required.\n${NC}"
   print_usage
   exit 1
 fi
 
 if [[ "$#" -gt 1 ]]; then
-  echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.\n${NC}"
   print_usage
   exit 1
 fi
