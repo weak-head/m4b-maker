@@ -54,10 +54,12 @@ declare -A COLORS=(
     [SECTION]='\033[1;32m'      # Green (bold)
     [CHAPTER]='\033[1;35m'      # Magenta (bold)
     [ACTION]='\033[0;34m⏳ '    # Blue
-    [RESULT]='\033[0;36m📄 '    # Cyan
+    [NEWCHAP]='\033[0;36m📝 '   # Cyan
+    [FILE]='\033[0;36m📄 '      # Cyan
+    [META]='\033[0;36m📕️ '      # Cyan
     # -- message severity
-    [INFO]='\033[0;36mℹ️ '       # Cyan
-    [WARN]='\033[0;33m⚡ '      # Yellow
+    [INFO]='\033[0;36mℹ️ '      # Cyan
+    [WARN]='\033[0;33m⚠️ '      # Yellow
     [ERROR]='\033[0;31m❌ '     # Red
     [SUCCESS]='\033[0;32m✅ '   # Green
 )
@@ -101,6 +103,9 @@ AAC_VBR_PROFILE=1 # Default: Very high quality (profile 1)
 INFO_TOTAL_SIZE=0
 INFO_TOTAL_CHAPTERS=0
 INFO_TOTAL_DURATION=""
+INFO_META_AUTHOR=""
+INFO_META_TITLE=""
+INFO_META_DATE=""
 
 function print_usage {
   echo -e "${COLORS[TITLE]}$(basename "$0")${NC} ${COLORS[TEXT]}${VERSION}${NC}"
@@ -153,6 +158,20 @@ function print_usage {
   echo -e ""
 }
 
+function get_relative_path {
+  local parent_path=$1 nested_path=$2
+
+  parent_real=$(realpath "${parent_path}")
+  nested_real=$(realpath "${nested_path}")
+
+  if [[ "${nested_real}" == "${parent_real}"* ]]; then
+    rel_path="${nested_real#"$parent_real/"}"
+    echo "${rel_path}"
+  else
+    echo "${nested_path}"
+  fi
+}
+
 function get_chapter_name {
   local file=$1
   local chapter_name
@@ -169,7 +188,7 @@ function get_chapter_name {
 }
 
 function convert {
-  local in_file=$1 out_file=$2 bitrate=$3
+  local in_file=$1 out_file=$2 bitrate=$3 path_info=$4
   local quality=""
   local codec="aac" # Native FFmpeg AAC audio codec
 
@@ -182,14 +201,14 @@ function convert {
   if [[ "${bitrate}" == "vbr" ]]; then
     if [[ "${codec}" == "libfdk_aac" ]]; then
       quality="-vbr ${LIBFDK_VBR_PROFILE}"
-      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${LIBFDK_VBR_PROFILE}]...${NC}"
+      echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} vbr ${LIBFDK_VBR_PROFILE}]...${NC}"
     else
       quality="-q:a ${AAC_VBR_PROFILE}"
-      echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} vbr ${AAC_VBR_PROFILE}]...${NC}"
+      echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} vbr ${AAC_VBR_PROFILE}]...${NC}"
     fi
   else
     quality="-b:a ${bitrate}"
-    echo -e "${COLORS[ACTION]}Encoding '${in_file}' [${codec} cbr ${bitrate}]...${NC}"
+    echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} cbr ${bitrate}]...${NC}"
   fi
 
   # shellcheck disable=SC2086
@@ -205,7 +224,7 @@ function add_cover_image {
   local m4b_file=$1 source_dir=$2 temp_dir=$3
   local cover_image image_ext
 
-  echo -e "\n${COLORS[ACTION]}Adding cover image...${NC}"
+  echo -e "${COLORS[ACTION]}Checking for cover image...${NC}"
 
   # Use the first image file in the source folder as cover
   cover_image=$(find "${source_dir}" -type f \
@@ -214,9 +233,10 @@ function add_cover_image {
     -o -iname "*.heic" -o -iname "*.heif" \) | head -n 1)
 
   if [[ -n "${cover_image}" ]]; then
-    echo -e "${COLORS[INFO]}Using cover image${NC} '${cover_image}'"
+    rel_path=$( get_relative_path "${source_dir}" "${cover_image}" )
+    echo -e "${COLORS[INFO]}Using artwork from image file '${rel_path}'${NC}"
   else
-    echo -e "${COLORS[INFO]}No cover image file.${NC}"
+    echo -e "${COLORS[INFO]}No external cover image file found.${NC}"
 
     # If there is no image file, try to extract an embedded cover art from the audio files
     mapfile -d $'\n' -t audio_files < <(find "${source_dir}" -type f \
@@ -233,7 +253,8 @@ function add_cover_image {
         -of default=noprint_wrappers=1:nokey=1 "${file}")
 
       if [[ -n "${image_codec}" ]]; then
-        echo -e "${COLORS[INFO]}Using embedded art from${NC} '${file}' [${image_codec}]"
+        rel_path=$( get_relative_path "${source_dir}" "${file}" )
+        echo -e "${COLORS[INFO]}Using embedded artwork from '${rel_path}' [${image_codec}]${NC}"
 
         case "${image_codec}" in
           mjpeg|jpeg) image_ext="jpg" ;;
@@ -252,7 +273,7 @@ function add_cover_image {
         if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
           break
         else
-          echo -e "${COLORS[WARN]}Warning: Failed to extract the embedded cover.${NC}"
+          echo -e "${COLORS[WARN]}Failed to extract the embedded cover.${NC}"
         fi
       fi
     done
@@ -260,15 +281,16 @@ function add_cover_image {
 
   # Embed the cover image file into the m4b audiobook
   if [[ -f "${cover_image}" ]]; then
+    echo -e "${COLORS[ACTION]}Embedding cover art...${NC}"
     if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
-      echo -e "${COLORS[SUCCESS]}Successfully added cover art.${NC}"
+      echo -e "${COLORS[SUCCESS]}Cover art added successfully.${NC}"
     else
-      echo -e "${COLORS[ERROR]}Error during cover art addition!${NC}"
+      echo -e "${COLORS[ERROR]}Failed to add cover art!${NC}"
       exit 1
     fi
   else
     echo -e "${COLORS[INFO]}No supported embedded cover art.${NC}"
-    echo -e "${COLORS[WARN]}Warning: Skipped cover art addition.${NC}"
+    echo -e "${COLORS[WARN]}Skipped cover art addition.${NC}"
   fi
 }
 
@@ -282,7 +304,7 @@ function add_metadata {
   local regex_4='^(.+) \[([0-9]{4})\]$'             # "Book Title [1939]"
   local regex_5='^(.+) [-:_] (.+)$'                 # "Author Name : Book Title"
 
-  echo -e "\n${COLORS[ACTION]}Extracting metadata...${NC}"
+  echo -e "${COLORS[ACTION]}Extracting audiobook metadata...${NC}"
   dir_name=$(basename "${source_dir%/}")
 
   # Try to extract audiobook metadata from directory name
@@ -300,35 +322,40 @@ function add_metadata {
     original_m4a="${temp_dir}/final.untagged.m4a"
     mv "${m4b_file}" "${original_m4a}"
 
-    echo -e "${COLORS[INFO]}Author:${NC} ${author}"
-    echo -e "${COLORS[INFO]}Title:${NC} ${title}"
-    echo -e "${COLORS[INFO]}Date:${NC} ${date}"
+    INFO_META_AUTHOR="${author}"
+    INFO_META_TITLE="${title}"
+    INFO_META_DATE="${date}"
+
+    echo -e "${COLORS[META]}Author:${NC} ${author}"
+    echo -e "${COLORS[META]}Title:${NC} ${title}"
+    echo -e "${COLORS[META]}Date:${NC} ${date}"
+    echo -e "${COLORS[ACTION]}Embedding metadata...${NC}"
 
     if ${FFMPEG} -i "${original_m4a}" \
         -metadata title="${title}" -metadata album="${title}" \
         -metadata artist="${author}" -metadata album_artist="${author}" \
         -metadata date="${date}" -metadata genre="Audiobook" \
         -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
-      echo -e "${COLORS[SUCCESS]}Metadata successfully embedded.${NC}"
+      echo -e "${COLORS[SUCCESS]}Metadata embedded successfully.${NC}"
     else
-      echo -e "${COLORS[ERROR]}Error: Failed to embed metadata.${NC}"
+      echo -e "${COLORS[ERROR]}Failed to embed metadata.${NC}"
       exit 1
     fi
   else
-    echo -e "${COLORS[WARN]}Warning: Skipped metadata extraction.${NC}"
+    echo -e "${COLORS[WARN]}Skipped metadata extraction.${NC}"
   fi
 }
 
 function combine {
   local file_order=$1 m4a_file=$2
 
-  echo -e "\n${COLORS[ACTION]}Combining all audio files...${NC}"
+  echo -e "${COLORS[ACTION]}Combining audio files into a single audiobook...${NC}"
 
   if ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1; then
-    echo -e "${COLORS[SUCCESS]}Successfully combined all files.${NC}"
+    echo -e "${COLORS[SUCCESS]}Audio files merged successfully.${NC}"
     INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | bc) # MB
   else
-    echo -e "${COLORS[ERROR]}Error during file concatenation!${NC}"
+    echo -e "${COLORS[ERROR]}Failed to merge audio files!${NC}"
     exit 1
   fi
 }
@@ -336,12 +363,12 @@ function combine {
 function add_chapters {
   local temp_dir=$1 m4a_file=$2
 
-  echo -e "\n${COLORS[ACTION]}Adding chapters...${NC}"
+  echo -e "${COLORS[ACTION]}Adding chapter markers...${NC}"
 
   if (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1); then
-    echo -e "${COLORS[SUCCESS]}Chapters successfully added.${NC}"
+    echo -e "${COLORS[SUCCESS]}Chapter markers added successfully.${NC}"
   else
-    echo -e "${COLORS[ERROR]}Error adding chapters!${NC}"
+    echo -e "${COLORS[ERROR]}Failed to add chapter markers!${NC}"
     exit 1
   fi
 }
@@ -349,12 +376,12 @@ function add_chapters {
 function move_audiobook {
   local temp_file=$1 destination=$2
 
-  echo -e "\n${COLORS[ACTION]}Moving audiobook...${NC}"
+  echo -e "${COLORS[ACTION]}Moving audiobook to destination...${NC}"
  
   if mv "${temp_file}" "${destination}" > /dev/null 2>&1; then
-    echo -e "${COLORS[SUCCESS]}Audiobook successfully moved.${NC}"
+    echo -e "${COLORS[SUCCESS]}Audiobook moved successfully.${NC}"
   else
-    echo -e "${COLORS[ERROR]}Error moving audiobook to the destinaton!${NC}"
+    echo -e "${COLORS[ERROR]}Failed to move audiobook to the destinaton!${NC}"
     exit 1
   fi
 }
@@ -384,7 +411,8 @@ function process_file_as_chapter {
     output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
     echo "file '${output_m4a}'" >> "${file_order}"
 
-    convert "${file}" "${output_m4a}" "${bitrate}"
+    rel_path=$( get_relative_path "${input_dir}" "${file}" )
+    convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(printf "%02d:%02d:%06.3f\n" \
@@ -398,7 +426,7 @@ function process_file_as_chapter {
     current_time=$(echo "${current_time} + ${duration}" | bc)
     i=$((i + 1))
 
-    echo -e "${COLORS[RESULT]}Added chapter:${NC} '${chapter_name}' @ ${timestamp}\n"
+    echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
     echo -e "-----------------------------------------"
   done
 
@@ -436,7 +464,8 @@ function process_dirs_as_chapter {
       output_m4a=$(mktemp "${temp_dir}/audio_${i}_XXXXXXXXXXXXXXX.m4a")
       echo "file '${output_m4a}'" >> "${file_order}"
 
-      convert "${file}" "${output_m4a}" "${bitrate}"
+      rel_path=$( get_relative_path "${input_dir}" "${file}" )
+      convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
       duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
       chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
@@ -453,7 +482,7 @@ function process_dirs_as_chapter {
     current_time=$(echo "${current_time} + ${chapter_duration}" | bc)
     i=$((i + 1))
 
-    echo -e "${COLORS[RESULT]}Added chapter:${NC} '${chapter_name}' @ ${timestamp}\n"
+    echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
     echo -e "-----------------------------------------"
   done
 
@@ -546,26 +575,43 @@ else
   process_file_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
 fi
 
+echo -e "\n${COLORS[SECTION]}Merging Audio Files...${NC}"
+echo -e "-----------------------------------------"
+
 # Combine all M4A files into a single file
 combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 
+echo -e "-----------------------------------------"
+echo -e "\n${COLORS[SECTION]}Processing Metadata...${NC}"
+echo -e "-----------------------------------------"
+
 # Add chapters to the final file
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
+echo -e "---"
 
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
+echo -e "---"
 
 # Add audiobook ID3 tags
 add_metadata "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
+echo -e "-----------------------------------------"
+echo -e "\n${COLORS[SECTION]}Finalizing...${NC}"
+echo -e "-----------------------------------------"
+
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
-echo -e "\n-----------------------------------------\n"
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
-echo -e "${COLORS[INFO]}Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
-echo -e "${COLORS[INFO]}Length:${NC} ${INFO_TOTAL_DURATION}"
-echo -e "${COLORS[INFO]}Size:${NC} ${INFO_TOTAL_SIZE} MB"
-echo -e "${COLORS[INFO]}Audiobook:${NC} ${OUTPUT_FILE}"
+echo -e "\n${COLORS[SECTION]}M4B Audiobook Summary:${NC}"
+echo -e "-----------------------------------------"
+echo -e "${COLORS[FILE]}File:${NC} ${OUTPUT_FILE}"
+echo -e "${COLORS[FILE]}Chapters:${NC} ${INFO_TOTAL_CHAPTERS}"
+echo -e "${COLORS[FILE]}Length:${NC} ${INFO_TOTAL_DURATION}"
+echo -e "${COLORS[FILE]}Size:${NC} ${INFO_TOTAL_SIZE} MB"
+echo -e "${COLORS[META]}Author:${NC} ${INFO_META_AUTHOR}"
+echo -e "${COLORS[META]}Title:${NC} ${INFO_META_TITLE}"
+echo -e "${COLORS[META]}Date:${NC} ${INFO_META_DATE}"
 echo -e "-----------------------------------------\n"

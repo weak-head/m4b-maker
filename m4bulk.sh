@@ -58,12 +58,13 @@ declare -A COLORS=(
     [ARGS]='\033[0;35m'         # Magenta
     # -- conversion log
     [SECTION]='\033[1;32m'      # Green (bold)
-    [DISCOVER]='\033[0;35m🔍 '     # Magenta
+    [DISCOVER]='\033[0;35m🔍 '  # Magenta
     [ACTION]='\033[0;34m⏳ '    # Blue
-    [RESULT]='\033[0;36m📄 '    # Cyan
+    [FILE]='\033[0;36m📄 '      # Cyan
+    [META]='\033[0;36m📕️ '      # Cyan
     # -- message severity
     [INFO]='\033[0;36mℹ️ '       # Cyan
-    [WARN]='\033[0;33m⚡ '      # Yellow
+    [WARN]='\033[0;33m⚠️ '       # Yellow
     [ERROR]='\033[0;31m❌ '     # Red
     [SUCCESS]='\033[0;32m✅ '   # Green
 )
@@ -72,6 +73,9 @@ declare -A COLORS=(
 readonly REGEX_STRIP_ANSI_EC="s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
 
 M4BIFY=$(command -v m4bify)
+if [[ -z ${M4BIFY} && -f ./m4bify.sh ]]; then
+  M4BIFY=$(realpath ./m4bify.sh)
+fi
 readonly M4BIFY
 
 function print_usage {
@@ -129,6 +133,20 @@ function print_usage {
   echo -e ""
 }
 
+function get_relative_path {
+  local parent_path=$1 nested_path=$2
+
+  parent_real=$(realpath "${parent_path}")
+  nested_real=$(realpath "${nested_path}")
+
+  if [[ "${nested_real}" == "${parent_real}"* ]]; then
+    rel_path="${nested_real#"$parent_real/"}"
+    echo "${rel_path}"
+  else
+    echo "${nested_path}"
+  fi
+}
+
 function next_directory {
   local queue=$1 lock=$2
   local directory
@@ -158,8 +176,9 @@ function worker {
     if [[ -z $directory ]]; then
       break
     fi
-
-    echo -e "${COLORS[ACTION]}Processing:${NC} ${directory}"
+    
+    rel_path=$( get_relative_path "${INPUT_DIRECTORY}" "${directory}" )
+    echo -e "${COLORS[ACTION]}Converting: '${rel_path}'${NC}"
 
     # Create the M4B book using m4bify, capturing the output 
     # to the log file and stripping the color codes
@@ -168,10 +187,10 @@ function worker {
 
     # Exit status of the first command (m4bify)
     if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
-      echo -e "${COLORS[SUCCESS]}Completed:${NC} ${directory}"
+      echo -e "${COLORS[SUCCESS]}Completed: '${rel_path}'${NC}"
       echo "${directory}" >> "${success}"
     else
-      echo -e "${COLORS[ERROR]}Error:${NC} ${directory}"
+      echo -e "${COLORS[ERROR]}Failed: '${rel_path}'${NC}"
       echo "${directory}" >> "${failure}"
     fi
   done
@@ -179,6 +198,11 @@ function worker {
 
 ARGS=() # Default is nothing
 WORKERS=$(( $(nproc) / 2 )) # Default is 50% of CPU cores
+
+# At least one worker should be available
+if [[ ${WORKERS} -lt 1 ]]; then
+  WORKERS=1
+fi
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -201,10 +225,10 @@ if [[ -z "${M4BIFY}" ]]; then
   exit 1
 fi
 
-DIRECTORY=$(realpath "${ARGS[-1]}")
+INPUT_DIRECTORY=$(realpath "${ARGS[-1]}")
 unset 'ARGS[-1]'
 
-if [[ ! -d "${DIRECTORY}" ]]; then
+if [[ ! -d "${INPUT_DIRECTORY}" ]]; then
   echo -e "\n${COLORS[ERROR]}Error: Input directory does not exist.${NC}"
   exit 1
 fi
@@ -214,11 +238,15 @@ if ! [[ "${WORKERS}" =~ ^[0-9]+$ ]] || ((WORKERS < 1)) || ((WORKERS > $(nproc)))
   exit 1
 fi
 
-echo -e "\n${COLORS[SECTION]}Preparing conversion...${NC}"
+M4BIFY_VERSION=$(${M4BIFY} --help | head -n 1 | awk '{print $2}')
+
+echo -e "\n${COLORS[SECTION]}Initializing Environment...${NC}"
 echo -e "-----------------------------------------"
-echo -e "${COLORS[INFO]}Workers:${NC} ${WORKERS}"
+echo -e "${COLORS[INFO]}Source Directory:${NC} ${INPUT_DIRECTORY}"
 echo -e "${COLORS[INFO]}Arguments:${NC} ${ARGS[*]}"
-echo -e "${COLORS[INFO]}Source Directory:${NC} ${DIRECTORY}"
+echo -e "${COLORS[INFO]}Workers:${NC} ${WORKERS}"
+echo -e "${COLORS[INFO]}m4bulk:${NC} ${VERSION}"
+echo -e "${COLORS[INFO]}m4bify:${NC} ${M4BIFY_VERSION}"
 echo -e "-----------------------------------------\n"
 
 TEMP_QUEUE_FILE=$(mktemp)
@@ -232,19 +260,21 @@ touch "${TEMP_INFO_ERROR_FILE}"
 
 trap 'rm -f "${TEMP_QUEUE_FILE}" "${TEMP_LOCK_FILE}" "${TEMP_INFO_SUCCESS_FILE}" "${TEMP_INFO_ERROR_FILE}"' EXIT
 
-# Discover books and initialize the queue with the list of directories
-find "${DIRECTORY}" -mindepth 1 -maxdepth 1 -type d > "${TEMP_QUEUE_FILE}"
-
-echo -e "${COLORS[SECTION]}Discovering audiobooks...${NC}"
+echo -e "${COLORS[SECTION]}Scanning for Audiobooks...${NC}"
 echo -e "-----------------------------------------"
 
+# Discover books and initialize the queue with the list of directories
+find "${INPUT_DIRECTORY}" -mindepth 1 -maxdepth 1 -type d > "${TEMP_QUEUE_FILE}"
+
 while IFS= read -r directory; do
-  echo -e "${COLORS[DISCOVER]}Discovered:${NC} ${directory}"
+  rel_path=$( get_relative_path "${INPUT_DIRECTORY}" "${directory}" )
+  echo -e "${COLORS[DISCOVER]}Found: '${rel_path}'${NC}"
 done < "${TEMP_QUEUE_FILE}"
 
-echo -e "\n${COLORS[INFO]}Total:${NC} $(awk 'END {print NR}' "${TEMP_QUEUE_FILE}")"
+echo -e "---"
+echo -e "${COLORS[INFO]}Total:${NC} $(awk 'END {print NR}' "${TEMP_QUEUE_FILE}")"
 echo -e "-----------------------------------------\n"
-echo -e "${COLORS[SECTION]}Converting audiobooks...${NC}"
+echo -e "${COLORS[SECTION]}Converting Audiobooks...${NC}"
 echo -e "-----------------------------------------"
 
 for ((i = 0; i < WORKERS; i++)); do
@@ -271,19 +301,23 @@ else
 fi
 
 echo -e "-----------------------------------------\n"
-echo -e "${COLORS[SUCCESS]}Audiobooks processing finished!${NC}"
+echo -e "${COLORS[SECTION]}Processing Summary:${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}Elapsed:${NC} ${INFO_TOTAL_ELAPSED}"
-echo -e "${COLORS[INFO]}Successfully converted:${NC} ${COLORS[SUCCESS]}${INFO_SUCCESS_COUNT}${NC}"
 
-while IFS= read -r directory; do
-  echo -e "  ${COLORS[SUCCESS]}${NC}${directory}"
-done < "${TEMP_INFO_SUCCESS_FILE}"
+if [[ "${INFO_SUCCESS_COUNT}" != "0" ]]; then
+  echo -e "${COLORS[INFO]}Success:${NC} ${INFO_SUCCESS_COUNT}"
+  while IFS= read -r directory; do
+    rel_path=$( get_relative_path "${INPUT_DIRECTORY}" "${directory}" )
+    echo -e "  ${COLORS[SUCCESS]}${NC}${rel_path}"
+  done < "${TEMP_INFO_SUCCESS_FILE}"
+fi
 
 if [[ "${INFO_ERROR_COUNT}" != "0" ]]; then
-  echo -e "${COLORS[INFO]}Failed to convert:${NC} ${COLORS[ERROR]}${INFO_ERROR_COUNT}${NC}"
+  echo -e "${COLORS[INFO]}Failed:${NC} ${INFO_ERROR_COUNT}"
   while IFS= read -r directory; do
-    echo -e "  ${COLORS[ERROR]}${NC}${directory}"
+    rel_path=$( get_relative_path "${INPUT_DIRECTORY}" "${directory}" )
+    echo -e "  ${COLORS[ERROR]}${NC}${rel_path}"
   done < "${TEMP_INFO_ERROR_FILE}"
 fi
 
