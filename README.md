@@ -2,7 +2,7 @@
   
   # M4B Audiobook Maker <!-- omit from toc -->
 
-  A set of bash scripts to convert audio files into M4B audiobooks with chapter markers and customizable bitrate. 
+  A set of bash scripts to convert audio files into M4B audiobooks with chapter markers, customizable bitrate, book metadata and embedded cover art.
 
   <p align="center">
     <a href="https://github.com/weak-head/m4b-maker/actions/workflows/lint.yaml">
@@ -33,18 +33,15 @@
 
 ## Overview
 
-M4B Audiobook Maker is a set of bash scripts that simplify converting audio files into the M4B audiobook format. It includes `m4bify` for single conversions and `m4bulk` for batch processing, with parallel execution to speed up multi-core systems.
+M4B Audiobook Maker is a set of bash scripts that simplify converting audio files into the M4B audiobook format. It includes `m4bify` for single conversions and `m4bulk` for batch processing.
 
-**Key Features**
+**Single Audiobook Conversion (`m4bify`)**
 
-- *Single Audiobook Conversion (`m4bify`)*\
-  Combine audio files into a single M4B file with chapter markers. Files are processed alphabetically to ensure the correct playback order. Chapters are auto-generated from metadata or file names, or you can use the `--chapters-from-dirs` flag to create chapters from top-level subdirectories. Specify a custom bitrate with the `--bitrate` flag. If an image file or embedded art is found, it will be added as the book cover. Directory names following specific patterns can also be parsed to extract metadata like author, title, and year.
+Combines audio files into a single M4B audiobook with chapter markers, ensuring correct playback order by processing files alphabetically. Chapters are automatically created based on metadata, filenames, or top-level subdirectories when the `--chapters-from-dirs` flag is used. You can customize the audio quality with the `--bitrate` flag, and if an image file or embedded art is available, it will be added as the book cover. Additionally, directory names that follow supported patterns are parsed to extract metadata such as the author, title, and year.
 
-- *Batch Audiobook Conversion (`m4bulk`)*\
-  Scan a root directory for audiobook folders and convert them to M4B files in parallel. You can pass custom options like bitrate and chapter settings to `m4bify` for each task. `m4bulk` uses multiple worker threads to process audiobooks simultaneously, making batch conversions much faster.
+**Batch Audiobook Conversion (`m4bulk`)**
 
-- *Detailed Logging*\
-  Both scripts create detailed logs with chapter info, durations, and any errors. After a batch run, `m4bulk` gives a summary with success/failure counts and total processing time, while `m4bify` creates a detailed log of a single audiobook conversion.
+Scan a root directory for audiobook folders and convert them to M4B files in parallel. You can pass custom options like bitrate and chapter settings to `m4bify` for each task. `m4bulk` uses multiple worker threads to process audiobooks simultaneously, making batch conversions much faster.
 
 ## Getting Started
 
@@ -64,11 +61,7 @@ To install the scripts, run:
 make install
 ```
 
-This installs scripts to `/usr/local/sbin/`. To change the location, adjust the `PREFIX` in the Makefile. To uninstall, use:
-
-```bash
-make uninstall
-```
+This installs scripts to `/usr/local/sbin/`.
 
 ## m4bify
 
@@ -115,7 +108,7 @@ In addition to the hyphen `-`, the underscore `_` and colon `:` are supported.
 
 ## m4bulk
 
-`m4bulk` automates batch conversion of audiobook folders to M4B format using `m4bify`. It scans a root directory for audiobook folders and processes them efficiently with parallel execution.
+`m4bulk` automates batch conversion of audiobook folders to M4B format using `m4bify`. It scans a root directory for audiobook folders and processes them in parallel.
 
 Key features:
 
