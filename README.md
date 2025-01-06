@@ -82,8 +82,8 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 
 **Options**
 
-- `-d`, `--chapters-from-dirs` (optional): Treats each top-level subdirectory as a chapter.
-- `-b <value>`, `--bitrate <value>` (optional): Sets the audio encoding bitrate, e.g., "128k" or "96k" (default: VBR Very High).
+- `-d`, `--chapters-from-dirs`: Treats each top-level subdirectory as a chapter.
+- `-b <value>`, `--bitrate <value>`: Sets the audio encoding bitrate (e.g. "128k", default: VBR Very High).
 - `--help`: Displays usage instructions and exits.
 
 **Arguments**
@@ -119,17 +119,17 @@ m4bulk [--help] [--workers <N>] [m4bify-options] <audiobooks_directory>
 
 **Options**
 
-- `--workers <N>` (optional): Number of worker threads (default: 50% of CPU cores). Must be between 1 and the total number of CPU cores.
+- `--workers <N>`: Number of worker threads (default: 50% of CPU cores).
 - `--help`: Displays usage instructions and exits.
 
 **Arguments**
 
-- `[m4bify-options]` (optional): Optional arguments passed directly to `m4bify` (e.g., `--bitrate <rate>`, `--chapters-from-dirs`).
-- `<audiobooks_directory>` (required): The root directory containing subdirectories of audiobooks to convert.
+- `[m4bify-options]` (optional): Optional arguments passed directly to `m4bify` (e.g. `-b <rate>`).
+- `<audiobooks_directory>` (required): Directory containing subdirectories of audiobooks to convert.
 
 ## Usage Examples
 
-**Single Audiobook Conversion**
+**Metadata Extracted from Directory Name**
 
 Combine all audio files in `/home/user/audiobooks/Author Name - Book Title (1993)/` into a single M4B audiobook. Chapters are automatically generated based on file metadata or filenames. Author, title and year are extracted from the directory name:
 
