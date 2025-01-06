@@ -65,7 +65,7 @@ This installs the scripts to `/usr/local/sbin/`.
 
 ## m4bify
 
-`m4bify` simplifies converting audio files into M4B audiobooks by processing files in the specified directory and sorting them alphabetically to ensure the correct playback order. Chapters can be organized either as file-based, where each audio file becomes its own chapter named using metadata or filenames, or directory-based, where each top-level subdirectory is treated as a chapter, combining all its audio files, including those in nested folders, into one.
+`m4bify` creates M4B audiobook by processing files in the specified directory, sorting them alphabetically to ensure the correct playback order. Chapters can be organized either as file-based, where each audio file becomes its own chapter named using metadata or filenames, or directory-based, where each top-level subdirectory is treated as a chapter, combining all its audio files, including those in nested folders, into one.
 
 Other features include:
 
@@ -77,7 +77,7 @@ Other features include:
 **Syntax**
 
 ```bash
-m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>] <audiobook_directory>
+m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>] <directory>
 ```
 
 **Options**
@@ -88,7 +88,7 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 
 **Arguments**
 
-- `<audiobook_directory>` (required): Path to the directory containing audiobook files.
+- `<directory>` (required): Path to the directory containing audiobook files.
 
 **Directory Patterns**
 
