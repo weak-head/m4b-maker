@@ -17,10 +17,10 @@
 #   $> m4bify [--chapters-from-dirs] [--bitrate <value>] <audiobook_directory>
 #
 # Options:
-#   --chapters-from-dirs      Treats each top-level subdirectory as a chapter. Audio files in these directories, 
+#   -d, --chapters-from-dirs   Treats each top-level subdirectory as a chapter. Audio files in these directories, 
 #                              including nested subdirectories, are combined into that chapter.
-#   --bitrate <value>         Sets the audio encoding bitrate, e.g., "128k" or "96k" (default: AAC VBR Very High).
-#   --help                    Displays usage instructions and exits.
+#   -b, --bitrate <value>      Sets the audio encoding bitrate, e.g., "128k" or "96k" (default: AAC VBR Very High).
+#   --help                     Displays usage instructions and exits.
 #
 # Arguments:
 #   <audiobook_directory>     Path to the directory containing audio files or subdirectories.
@@ -50,6 +50,7 @@ declare -A COLORS=(
     [TEXT]='\033[0;37m'         # White
     [CMD]='\033[0;34m'          # Blue
     [ARGS]='\033[0;35m'         # Magenta
+    [PATTERN]='\033[0;35m'      # Magenta
     # -- conversion log
     [SECTION]='\033[1;32m'      # Green (bold)
     [CHAPTER]='\033[1;35m'      # Magenta (bold)
@@ -114,22 +115,25 @@ function print_usage {
   echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}[options] <audiobook_directory>${NC}"
   echo -e ""
   echo -e "${COLORS[TITLE]}Options:${NC}"
-  echo -e "  ${COLORS[ARGS]}--chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
-  echo -e "                          Files within each chapter directory (including nested ones)"
-  echo -e "                          are discovered recursively and processed alphabetically."
-  echo -e "  ${COLORS[ARGS]}--bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
-  echo -e "                          Defaults to AAC VBR Very High quality."
-  echo -e "  ${COLORS[ARGS]}--help${NC}                  Display this help message and exit."
+  echo -e "  ${COLORS[ARGS]}-d, --chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
+  echo -e "                              Files within each chapter directory (including nested ones)"
+  echo -e "                              are discovered recursively and processed alphabetically."
+  echo -e "  ${COLORS[ARGS]}-b, --bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
+  echo -e "                              Defaults to VBR Very High quality (~96-192 kbps)."
+  echo -e "  ${COLORS[ARGS]}--help${NC}                      Display this help message and exit."
   echo -e ""
   echo -e "${COLORS[TITLE]}Arguments:${NC}"
-  echo -e "  ${COLORS[ARGS]}<audiobook_directory>${NC}   Path to the directory containing audiobook files or subdirectories."
+  echo -e "  ${COLORS[ARGS]}<audiobook_directory>${NC}       Path to the directory containing audiobook files or subdirectories."
   echo -e ""
   echo -e "${COLORS[TITLE]}Examples:${NC}"
-  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}/path/to/audiobook${NC}"
-  echo -e "      Combines all audio files in the \"audiobook\" directory into a single M4B audiobook."
-  echo -e "      Chapters are based on filenames or metadata, with files processed alphabetically."
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}\"/home/user/Author Name - Book Title (1993)\"${NC}"
+  echo -e "      Combines all audio files in the directory \"Author Name - Book Title (1993)\""
+  echo -e "      into a single M4B audiobook. Chapters are created based on filenames or embedded"
+  echo -e "      audio metadata, with files processed in alphabetical order. Such as the directory name"
+  echo -e "      follows the pattern ${COLORS[PATTERN]}'<author_name> - <book_title> (year)'${NC}, the author name, book title,"
+  echo -e "      and year will be automatically extracted and embedded into the resulting M4B audiobook."
   echo -e ""
-  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}--chapters-from-dirs --bitrate 96k /path/to/audiobook${NC}"
+  echo -e "  ${COLORS[CMD]}$(basename "$0")${NC} ${COLORS[ARGS]}-d -b 96k /path/to/audiobook${NC}"
   echo -e "      Each top-level subdirectory in \"audiobook\" is treated as a chapter."
   echo -e "      Files within each chapter are processed recursively and alphabetically,"
   echo -e "      with audio encoded at 96 kbps bitrate."
@@ -141,6 +145,19 @@ function print_usage {
   echo -e "    - File-based chapters: Each audio file becomes a chapter."
   echo -e "    - Directory-based chapters: Each top-level subdirectory becomes a chapter, and"
   echo -e "      all audio files within it are combined, including files in nested subdirectories."
+  echo -e "  Additionally, the script can extract metadata from the directory name to embed in the M4B."
+  echo -e "  If the directory name follows a supported naming pattern, the script will automatically"
+  echo -e "  extract the author name, book title, and year from the name and embed these values into"
+  echo -e "  the resulting M4B audiobook. The supported directory name patterns include:"
+  echo -e "    - ${COLORS[PATTERN]}<author_name> - <book_title> (<year>)${NC}       'J.K. Rowling - Harry Potter (1997)'"
+  echo -e "    - ${COLORS[PATTERN]}<author_name> - <book_title> [<year>]${NC}       'J.K. Rowling - Harry Potter [1997]'"
+  echo -e "    - ${COLORS[PATTERN]}<book_title> (<year>)${NC}                       'Harry Potter (1997)'"
+  echo -e "    - ${COLORS[PATTERN]}<book_title> [<year>]${NC}                       'Harry Potter [1997]'"
+  echo -e "    - ${COLORS[PATTERN]}<author_name> - <book_title>${NC}                'J.K. Rowling - Harry Potter'"
+  echo -e "  In addition to the hyphen (-), the underscore (_) and colon (:) are supported as"
+  echo -e "  separators in these patterns."
+  echo -e "  If there is an image file in the directory or embedded art within the audio files,"
+  echo -e "  it will be used as the book cover for the M4B audiobook."
   echo -e ""
   echo -e "${COLORS[TITLE]}Workflow:${NC}"
   echo -e "  1. Scans the provided audiobook directory to identify audio files or subdirectories."
@@ -148,6 +165,8 @@ function print_usage {
   echo -e "  3. Organizes files into chapters based on filenames, metadata, or directory structure."
   echo -e "  4. Converts audio files to AAC format with the specified bitrate or default quality."
   echo -e "  5. Combines all files into a single M4B file with chapter markers."
+  echo -e "  6. Extracts author name, book title, and year from the directory name if it follows a supported pattern."
+  echo -e "  7. Uses any image file or embedded art as the book cover in the M4B audiobook."
   echo -e ""
   echo -e "${COLORS[TITLE]}Dependencies:${NC}"
   echo -e "  The following tools must be installed and available in your PATH:"
@@ -496,8 +515,8 @@ BITRATE="vbr"             # Default is VBR
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
-    --chapters-from-dirs) CHAPTERS_FROM_DIRS=true; shift ;;
-    --bitrate) BITRATE="$2"; shift 2 ;;
+    -d|--chapters-from-dirs) CHAPTERS_FROM_DIRS=true; shift ;;
+    -b|--bitrate) BITRATE="$2"; shift 2 ;;
     --help) print_usage; exit 0 ;;
     *) break ;;
   esac
@@ -505,13 +524,13 @@ done
 
 # Required positional argument: audiobook directory
 if [[ "$#" -lt 1 ]]; then
-  echo -e "\n${COLORS[ERROR]}Error: Input directory is required.${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Input directory is required.\n${NC}"
   print_usage
   exit 1
 fi
 
 if [[ "$#" -gt 1 ]]; then
-  echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.${NC}"
+  echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.\n${NC}"
   print_usage
   exit 1
 fi
