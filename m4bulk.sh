@@ -46,7 +46,7 @@
 # - Logs for each audiobook conversion will be saved in the same directory as the source audiobooks.
 # - Customize worker threads and m4bify options to optimize for system resources and project requirements.
 
-readonly VERSION="v0.3.4"
+readonly VERSION="v0.3.5"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
