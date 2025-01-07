@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.4"
+readonly VERSION="v0.3.5"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -76,15 +76,14 @@ MP4ART=$(command -v mp4art)
 readonly FFMPEG FFPROBE MP4CHAPS MP4ART
 
 # libfdk_acc VBR Quality Profiles
-# Profile  | Bitrate Range (kbps) | Description
-# ---------|-----------------------|--------------------------
-#    0     | ~20–40                | Very low quality
-#    1     | ~32–64                | Low quality
-#    2     | ~48–96                | Medium quality
-#    3     | ~64–128               | High quality
-#    4     | ~96–192               | Very high quality (recommended)
-#    5     | ~128–256              | Highest quality
-LIBFDK_VBR_PROFILE=4 # Default: Very high quality (profile 4)
+# Profile  | Bitrate (kbps) | Description
+# ---------|----------------|--------------------------
+#    1     | ~32            | Low quality
+#    2     | ~40            | Medium quality
+#    3     | ~56            | High quality
+#    4     | ~72            | Very high quality
+#    5     | ~112           | Highest quality
+LIBFDK_VBR_PROFILE=5
 
 # aac VBR Quality Profiles
 # Profile  | Bitrate Range (kbps) | Description
@@ -99,7 +98,7 @@ LIBFDK_VBR_PROFILE=4 # Default: Very high quality (profile 4)
 #    7     |  80–120              | Very low quality
 #    8     |  70–105              | Poor quality
 #    9     |  65–85               | Lowest quality
-AAC_VBR_PROFILE=1 # Default: Very high quality (profile 1)
+AAC_VBR_PROFILE=1
 
 INFO_TOTAL_SIZE=0
 INFO_TOTAL_CHAPTERS=0
