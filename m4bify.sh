@@ -153,8 +153,7 @@ function print_usage {
   echo -e "    - ${COLORS[PATTERN]}<book_title> (<year>)${NC}                       'Harry Potter (1997)'"
   echo -e "    - ${COLORS[PATTERN]}<book_title> [<year>]${NC}                       'Harry Potter [1997]'"
   echo -e "    - ${COLORS[PATTERN]}<author_name> - <book_title>${NC}                'J.K. Rowling - Harry Potter'"
-  echo -e "  In addition to the hyphen (-), the underscore (_) and colon (:) are supported as"
-  echo -e "  separators in these patterns."
+  echo -e "  Both hyphen (-) and underscore (_) are supported as separators in these patterns."
   echo -e "  If there is an image file in the directory or embedded art within the audio files,"
   echo -e "  it will be used as the book cover for the M4B audiobook."
   echo -e ""
@@ -316,11 +315,11 @@ function add_metadata {
   local m4b_file=$1 source_dir=$2 temp_dir=$3
   local dir_name author title date
 
-  local regex_1='^(.+) [-:_] (.+) \(([0-9]{4})\)$'  # "Author Name - Book Title (1939)"
-  local regex_2='^(.+) [-:_] (.+) \[([0-9]{4})\]$'  # "Author Name _ Book Title [1939]"
-  local regex_3='^(.+) \(([0-9]{4})\)$'             # "Book Title (1939)"
-  local regex_4='^(.+) \[([0-9]{4})\]$'             # "Book Title [1939]"
-  local regex_5='^(.+) [-:_] (.+)$'                 # "Author Name : Book Title"
+  local regex_1='^(.+) [-_] (.+) \(([0-9]{4})\)$'  # "Author Name - Book Title (1939)"
+  local regex_2='^(.+) [-_] (.+) \[([0-9]{4})\]$'  # "Author Name _ Book Title [1939]"
+  local regex_3='^(.+) \(([0-9]{4})\)$'            # "Book Title (1939)"
+  local regex_4='^(.+) \[([0-9]{4})\]$'            # "Book Title [1939]"
+  local regex_5='^(.+) [-_] (.+)$'                 # "Author Name - Book Title"
 
   echo -e "${COLORS[ACTION]}Extracting audiobook metadata...${NC}"
   dir_name=$(basename "${source_dir%/}")

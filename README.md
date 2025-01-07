@@ -98,7 +98,7 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 | `<author_name> - <book_title>` | Agatha Christie - Murder on the Orient Express |
 | `<book_title> (<year>)` | To Kill a Mockingbird (1960) |
 
-Both hyphen (`-`), underscore (`_`), and colon (`:`) are supported as separators. Additionally, square brackets (`[]`) can be used as an alternative to parentheses (`()`) for enclosing year information.
+Both hyphen (`-`) and underscore (`_`) are supported as separators. Additionally, square brackets (`[]`) can be used as an alternative to parentheses (`()`) for enclosing year information.
 
 ## m4bulk
 
