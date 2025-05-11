@@ -311,6 +311,46 @@ function add_cover_image {
   fi
 }
 
+function add_description {
+  local m4b_file=$1 source_dir=$2 temp_dir=$3
+  local description_file
+
+  echo -e "${COLORS[ACTION]}Checking for book description...${NC}"
+
+  # Use the first matched file in the source folder as book description
+  description_file=$(find "${source_dir}" -type f \
+    \( -iname "*.txt" -o -iname "*.info" -o -iname "*.md" \) | head -n 1)
+
+  # Embed the book description into the m4b audiobook
+  if [[ -f "${description_file}" ]]; then
+    rel_path=$( get_relative_path "${source_dir}" "${description_file}" )
+    echo -e "${COLORS[INFO]}Using book description from file '${rel_path}'${NC}"
+
+    # Read and clean up the description:
+    # - Trim leading/trailing whitespace
+    # - Preserve internal newlines
+    # - Escape double quotes
+    description=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' "${description_file}" \
+                 | sed 's/"/\\\"/g')
+
+    original_m4a="${temp_dir}/final.nodescr.m4a"
+    mv "${m4b_file}" "${original_m4a}"
+
+    echo -e "${COLORS[ACTION]}Embedding book description...${NC}"
+    if ${FFMPEG} -i "${original_m4a}" \
+        -metadata description="${description}" \
+        -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
+      echo -e "${COLORS[SUCCESS]}Book description embedded successfully.${NC}"
+    else
+      echo -e "${COLORS[ERROR]}Failed to embed book description.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${COLORS[INFO]}No file with book description found.${NC}"
+    echo -e "${COLORS[WARN]}Skipped book description addition.${NC}"
+  fi
+}
+
 function add_metadata {
   local m4b_file=$1 source_dir=$2 temp_dir=$3
   local dir_name author title date
