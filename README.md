@@ -72,6 +72,7 @@ Other features include:
 - Configurable audio bitrate, with high-quality AAC VBR as the default.
 - Metadata extraction from directory names that follow supported patterns.
 - Automatic cover art inclusion from image files or embedded artwork.
+- Embedding book descriptions from external text or Markdown files.
 - Comprehensive logs with chapter metadata.
 
 **Syntax**
