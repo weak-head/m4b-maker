@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.5"
+readonly VERSION="v0.3.6"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -308,6 +308,44 @@ function add_cover_image {
   else
     echo -e "${COLORS[INFO]}No supported embedded cover art.${NC}"
     echo -e "${COLORS[WARN]}Skipped cover art addition.${NC}"
+  fi
+}
+
+function add_description {
+  local m4b_file=$1 source_dir=$2 temp_dir=$3
+  local description_file
+
+  echo -e "${COLORS[ACTION]}Checking for book description file...${NC}"
+
+  # Use the first matched file in the source folder as book description
+  description_file=$(find "${source_dir}" -type f \
+    \( -iname "*.txt" -o -iname "*.info" -o -iname "*.md" \) | head -n 1)
+
+  # Embed the book description into the m4b audiobook
+  if [[ -f "${description_file}" ]]; then
+    rel_path=$( get_relative_path "${source_dir}" "${description_file}" )
+    echo -e "${COLORS[INFO]}Found description in '${rel_path}'${NC}"
+
+    # Read and clean up the description:
+    # - Trim leading/trailing whitespace
+    # - Preserve internal newlines
+    description=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' "${description_file}")
+
+    original_m4a="${temp_dir}/final.nodescr.m4a"
+    mv "${m4b_file}" "${original_m4a}"
+
+    echo -e "${COLORS[ACTION]}Embedding description into audiobook metadata...${NC}"
+    if ${FFMPEG} -i "${original_m4a}" \
+        -metadata description="${description}" \
+        -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
+      echo -e "${COLORS[SUCCESS]}Book description embedded successfully.${NC}"
+    else
+      echo -e "${COLORS[ERROR]}Failed to embed book description.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${COLORS[INFO]}No book description found.${NC}"
+    echo -e "${COLORS[WARN]}Skipped book description addition.${NC}"
   fi
 }
 
@@ -608,6 +646,10 @@ echo -e "---"
 
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
+echo -e "---"
+
+# Add book description (if available)
+add_description "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 echo -e "---"
 
 # Add audiobook ID3 tags
