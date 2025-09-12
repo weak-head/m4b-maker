@@ -470,7 +470,7 @@ function process_file_as_chapter {
     convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
     # Format the timestamp with hours potentially exceeding 24
-    timestamp=$(printf "%02d:%02d:%06.3f\n" \
+    timestamp=$(LC_NUMERIC="en_US.UTF-8" printf "%02d:%02d:%06.3f\n" \
       "$(echo "${current_time} / 3600" | bc)" \
       "$(echo "${current_time} % 3600 / 60" | bc)" \
       "$(echo "${current_time} % 60" | bc)")
@@ -527,7 +527,7 @@ function process_dirs_as_chapter {
     done
 
     # Format the timestamp with hours potentially exceeding 24
-    timestamp=$(printf "%02d:%02d:%06.3f\n" \
+    timestamp=$(LC_NUMERIC="en_US.UTF-8" printf "%02d:%02d:%06.3f\n" \
       "$(echo "${current_time} / 3600" | bc)" \
       "$(echo "${current_time} % 3600 / 60" | bc)" \
       "$(echo "${current_time} % 60" | bc)")
