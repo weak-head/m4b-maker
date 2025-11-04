@@ -228,6 +228,7 @@ function convert {
     fi
   elif [[ "${bitrate}" == "alac" ]]; then
     codec="alac"
+    echo -e "${COLORS[ACTION]}Encoding '${path_info}' [alac]...${NC}"
   else
     quality="-b:a ${bitrate}"
     echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} cbr ${bitrate}]...${NC}"
