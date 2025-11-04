@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.6"
+readonly VERSION="v0.3.7"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -62,6 +62,7 @@ declare -A COLORS=(
     [INFO]='\033[0;36mℹ️ '      # Cyan
     [WARN]='\033[0;33m⚠️ '      # Yellow
     [ERROR]='\033[0;31m❌ '     # Red
+    [ERRORCLEAN]='\033[0;31m '  # Red
     [SUCCESS]='\033[0;32m✅ '   # Green
 )
 
@@ -178,6 +179,12 @@ function print_usage {
   echo -e ""
 }
 
+function capture_errors {
+  while IFS= read -r line; do
+    echo -e "  ${COLORS[ERRORCLEAN]}${line}${NC}"
+  done
+}
+
 function get_relative_path {
   local parent_path=$1 nested_path=$2
 
@@ -235,7 +242,7 @@ function convert {
   fi
 
   # shellcheck disable=SC2086
-  if ${FFMPEG} -i "${in_file}" -c:a "${codec}" ${quality} -vn "${out_file}" -y > /dev/null 2>&1; then
+  if ${FFMPEG} -v fatal -i "${in_file}" -c:a "${codec}" ${quality} -vn "${out_file}" -y > >(capture_errors) 2>&1; then
     echo -e "${COLORS[SUCCESS]}Successfully encoded.${NC}"
   else
     echo -e "${COLORS[ERROR]}Failed to encode!${NC}"
@@ -293,7 +300,7 @@ function add_cover_image {
         cover_image="${temp_dir}/cover.${image_ext}"
 
         # Extract cover image from the audio file
-        if ${FFMPEG} -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > /dev/null 2>&1; then
+        if ${FFMPEG} -v fatal -i "${file}" -an -vcodec copy -frames:v 1 "${cover_image}" -y > >(capture_errors) 2>&1; then
           break
         else
           echo -e "${COLORS[WARN]}Failed to extract the embedded cover.${NC}"
@@ -305,7 +312,7 @@ function add_cover_image {
   # Embed the cover image file into the m4b audiobook
   if [[ -f "${cover_image}" ]]; then
     echo -e "${COLORS[ACTION]}Embedding cover art...${NC}"
-    if ${MP4ART} --add "${cover_image}" "${m4b_file}" > /dev/null 2>&1; then
+    if ${MP4ART} -q --add "${cover_image}" "${m4b_file}" > >(capture_errors) 2>&1; then
       echo -e "${COLORS[SUCCESS]}Cover art added successfully.${NC}"
     else
       echo -e "${COLORS[ERROR]}Failed to add cover art!${NC}"
@@ -341,9 +348,9 @@ function add_description {
     mv "${m4b_file}" "${original_m4a}"
 
     echo -e "${COLORS[ACTION]}Embedding description into audiobook metadata...${NC}"
-    if ${FFMPEG} -i "${original_m4a}" \
+    if ${FFMPEG} -v fatal -i "${original_m4a}" \
         -metadata description="${description}" \
-        -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
+        -codec copy "${m4b_file}" -y > >(capture_errors) 2>&1; then
       echo -e "${COLORS[SUCCESS]}Book description embedded successfully.${NC}"
     else
       echo -e "${COLORS[ERROR]}Failed to embed book description.${NC}"
@@ -392,11 +399,11 @@ function add_metadata {
     echo -e "${COLORS[META]}Date:${NC} ${date}"
     echo -e "${COLORS[ACTION]}Embedding metadata...${NC}"
 
-    if ${FFMPEG} -i "${original_m4a}" \
+    if ${FFMPEG} -v fatal -i "${original_m4a}" \
         -metadata title="${title}" -metadata album="${title}" \
         -metadata artist="${author}" -metadata album_artist="${author}" \
         -metadata date="${date}" -metadata genre="Audiobook" \
-        -codec copy "${m4b_file}" -y > /dev/null 2>&1; then
+        -codec copy "${m4b_file}" -y > >(capture_errors) 2>&1; then
       echo -e "${COLORS[SUCCESS]}Metadata embedded successfully.${NC}"
     else
       echo -e "${COLORS[ERROR]}Failed to embed metadata.${NC}"
@@ -412,7 +419,7 @@ function combine {
 
   echo -e "${COLORS[ACTION]}Combining audio files into a single audiobook...${NC}"
 
-  if ${FFMPEG} -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > /dev/null 2>&1; then
+  if ${FFMPEG} -v fatal -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > >(capture_errors) 2>&1; then
     echo -e "${COLORS[SUCCESS]}Audio files merged successfully.${NC}"
     INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | bc) # MB
   else
@@ -426,7 +433,7 @@ function add_chapters {
 
   echo -e "${COLORS[ACTION]}Adding chapter markers...${NC}"
 
-  if (cd "${temp_dir}" && ${MP4CHAPS} -i "${m4a_file}" > /dev/null 2>&1); then
+  if (cd "${temp_dir}" && ${MP4CHAPS} -q -i "${m4a_file}" > >(capture_errors) 2>&1); then
     echo -e "${COLORS[SUCCESS]}Chapter markers added successfully.${NC}"
   else
     echo -e "${COLORS[ERROR]}Failed to add chapter markers!${NC}"
@@ -439,7 +446,7 @@ function move_audiobook {
 
   echo -e "${COLORS[ACTION]}Moving audiobook to destination...${NC}"
  
-  if mv "${temp_file}" "${destination}" > /dev/null 2>&1; then
+  if mv "${temp_file}" "${destination}" > >(capture_errors) 2>&1; then
     echo -e "${COLORS[SUCCESS]}Audiobook moved successfully.${NC}"
   else
     echo -e "${COLORS[ERROR]}Failed to move audiobook to the destinaton!${NC}"
