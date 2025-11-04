@@ -117,8 +117,11 @@ function print_usage {
   echo -e "  ${COLORS[ARGS]}-d, --chapters-from-dirs${NC}    Treats each top-level subdirectory as a chapter."
   echo -e "                              Files within each chapter directory (including nested ones)"
   echo -e "                              are discovered recursively and processed alphabetically."
-  echo -e "  ${COLORS[ARGS]}-b, --bitrate <value>${NC}       Desired audio bitrate for the output, e.g., \"128k\" or \"96k\"."
-  echo -e "                              Defaults to VBR Very High quality (~96-192 kbps)."
+  echo -e "  ${COLORS[ARGS]}-b, --bitrate <value>${NC}       Desired audio bitrate for the output."
+  echo -e "                              Supported values:"
+  echo -e "                                - ${COLORS[ARGS]}<num>k${NC} - Fixed bitrate (e.g. 32k, 128k)"
+  echo -e "                                - ${COLORS[ARGS]}vbr${NC}    - VBR Very High (~96-192 kbps)"
+  echo -e "                                - ${COLORS[ARGS]}alac${NC}   - Apple Lossless Audio Codec"
   echo -e "  ${COLORS[ARGS]}--help${NC}                      Display this help message and exit."
   echo -e ""
   echo -e "${COLORS[TITLE]}Arguments:${NC}"
@@ -223,6 +226,9 @@ function convert {
       quality="-q:a ${AAC_VBR_PROFILE}"
       echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} vbr ${AAC_VBR_PROFILE}]...${NC}"
     fi
+  elif [[ "${bitrate}" == "alac" ]]; then
+    codec="alac"
+    echo -e "${COLORS[ACTION]}Encoding '${path_info}' [alac]...${NC}"
   else
     quality="-b:a ${bitrate}"
     echo -e "${COLORS[ACTION]}Encoding '${path_info}' [${codec} cbr ${bitrate}]...${NC}"

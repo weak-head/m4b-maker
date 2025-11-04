@@ -84,7 +84,10 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 **Options**
 
 - `-d`, `--chapters-from-dirs`: Treats each top-level subdirectory as a chapter.
-- `-b <value>`, `--bitrate <value>`: Sets the audio encoding bitrate (e.g. "128k", default: VBR Very High).
+- `-b <value>`, `--bitrate <value>`: Sets the audio encoding bitrate. Supported values:
+  - `<num>k` - Fixed bitrate (e.g. "32k", "128k")
+  - `vbr` - VBR Very High
+  - `alac` - [Apple Lossless Audio Codec](https://en.wikipedia.org/wiki/Apple_Lossless_Audio_Codec)
 - `--help`: Displays usage instructions and exits.
 
 **Arguments**
