@@ -585,10 +585,29 @@ if [[ "$#" -gt 1 ]]; then
   exit 1
 fi
 
-if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" || -z "${BC}" ]]; then
-  echo -e "${COLORS[ERROR]}Missing required binaries: ffmpeg, ffprobe, mp4chaps, mp4art, bc.${NC}"
+# Check for required binaries
+declare -A REQUIRED=(
+  [ffmpeg]="${FFMPEG}"
+  [ffprobe]="${FFPROBE}"
+  [mp4chaps]="${MP4CHAPS}"
+  [mp4art]="${MP4ART}"
+  [bc]="${BC}"
+)
+
+missing=()
+
+for bin in "${!REQUIRED[@]}"; do
+  [[ -z "${REQUIRED[$bin]:-}" ]] && missing+=("$bin")
+done
+
+if (( ${#missing[@]} > 0 )); then
+  echo -e "${COLORS[ERROR]}The following dependencies are missing:${NC}"
+  for bin in "${missing[@]}"; do
+    echo -e "  ${COLORS[WARN]} ${bin}${NC}"
+  done
   exit 1
 fi
+
 
 INPUT_DIR="$(realpath "$1")"
 OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
@@ -599,10 +618,10 @@ if [[ ! -d "${INPUT_DIR}" ]]; then
   exit 1
 fi
 
-FFMPEG_VERSION=$(ffmpeg -version | head -n 1 | awk '{print $3}')
-FFPROBE_VERSION=$(ffprobe -version | head -n 1 | awk '{print $3}')
-MP4CHAPS_VERSION=$(mp4chaps --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
-MP4ART_VERSION=$(mp4art --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+FFMPEG_VERSION=$(${FFMPEG} -version | head -n 1 | awk '{print $3}')
+FFPROBE_VERSION=$(${FFPROBE} -version | head -n 1 | awk '{print $3}')
+MP4CHAPS_VERSION=$(${MP4CHAPS} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+MP4ART_VERSION=$(${MP4ART} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 readonly FFMPEG_VERSION FFPROBE_VERSION MP4CHAPS_VERSION MP4ART_VERSION
 
 FFMPEG_OPTIONS=""
