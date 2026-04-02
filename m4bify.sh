@@ -74,7 +74,8 @@ FFMPEG=$(command -v ffmpeg)
 FFPROBE=$(command -v ffprobe)
 MP4CHAPS=$(command -v mp4chaps)
 MP4ART=$(command -v mp4art)
-readonly FFMPEG FFPROBE MP4CHAPS MP4ART
+BC=$(command -v bc)
+readonly FFMPEG FFPROBE MP4CHAPS MP4ART BC
 
 # libfdk_acc VBR Quality Profiles
 # Profile  | Bitrate (kbps) | Description
@@ -421,7 +422,7 @@ function combine {
 
   if ${FFMPEG} -v fatal -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > >(capture_errors) 2>&1; then
     echo -e "${COLORS[SUCCESS]}Audio files merged successfully.${NC}"
-    INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | bc) # MB
+    INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | ${BC}) # MB
   else
     echo -e "${COLORS[ERROR]}Failed to merge audio files!${NC}"
     exit 1
@@ -484,14 +485,14 @@ function process_file_as_chapter {
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(LC_NUMERIC="C" printf "%02d:%02d:%06.3f\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)" \
-      "$(echo "${current_time} % 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})" \
+      "$(echo "${current_time} % 60" | ${BC})")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
 
     duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
-    current_time=$(echo "${current_time} + ${duration}" | bc)
+    current_time=$(echo "${current_time} + ${duration}" | ${BC})
     i=$((i + 1))
 
     echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
@@ -499,8 +500,8 @@ function process_file_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})")
 }
 
 function process_dirs_as_chapter {
@@ -536,18 +537,18 @@ function process_dirs_as_chapter {
       convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
       duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
-      chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
+      chapter_duration=$(echo "${chapter_duration} + ${duration}" | ${BC})
     done
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(LC_NUMERIC="C" printf "%02d:%02d:%06.3f\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)" \
-      "$(echo "${current_time} % 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})" \
+      "$(echo "${current_time} % 60" | ${BC})")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
      
-    current_time=$(echo "${current_time} + ${chapter_duration}" | bc)
+    current_time=$(echo "${current_time} + ${chapter_duration}" | ${BC})
     i=$((i + 1))
 
     echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
@@ -555,8 +556,8 @@ function process_dirs_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})")
 }
 
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
@@ -584,8 +585,8 @@ if [[ "$#" -gt 1 ]]; then
   exit 1
 fi
 
-if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" ]]; then
-  echo -e "${COLORS[ERROR]}Missing required binaries: ffmpeg, ffprobe, mp4chaps, mp4art.${NC}"
+if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" || -z "${BC}" ]]; then
+  echo -e "${COLORS[ERROR]}Missing required binaries: ffmpeg, ffprobe, mp4chaps, mp4art, bc.${NC}"
   exit 1
 fi
 
