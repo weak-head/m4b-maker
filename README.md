@@ -45,23 +45,23 @@ Scan a root directory for audiobook folders and convert them to M4B files in par
 
 ## Getting Started
 
-Ensure the following dependencies are installed: [ffmpeg](https://ffmpeg.org) and [mp4v2](https://mp4v2.org/).
+The following tools must be installed and available in `PATH`:
 
-```bash
-# For RPM-based systems (Fedora, RHEL, CentOS)
-sudo dnf install ffmpeg libmp4v2
+- [ffmpeg](https://ffmpeg.org)
+- [mp4v2](https://mp4v2.org/)
+- [awk](https://linux.die.net/man/1/awk), [sed](https://linux.die.net/man/1/sed), [bc](https://linux.die.net/man/1/bc)
 
-# For Debian-based systems (Ubuntu, Debian)
-sudo apt install ffmpeg
-```
+**Optional:**  
 
-To install the scripts, run:
+`ffmpeg` with [libfdk_aac](https://github.com/mstorsjo/fdk-aac) enables higher-quality VBR encoding.
+
+**Installation:**
 
 ```bash
 make install
 ```
 
-This installs the scripts to `/usr/local/sbin/`.
+Installs scripts to `/usr/local/sbin/`.
 
 ## m4bify
 
@@ -86,7 +86,7 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 - `-d`, `--chapters-from-dirs`: Treats each top-level subdirectory as a chapter.
 - `-b <value>`, `--bitrate <value>`: Sets the audio encoding bitrate. Supported values:
   - `<num>k` - Fixed bitrate (e.g. "32k", "128k")
-  - `vbr` - VBR Very High
+  - `vbr` - VBR Very High (This is the default option)
   - `alac` - [Apple Lossless Audio Codec](https://en.wikipedia.org/wiki/Apple_Lossless_Audio_Codec)
 - `--help`: Displays usage instructions and exits.
 
