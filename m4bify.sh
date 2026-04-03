@@ -74,7 +74,8 @@ FFMPEG=$(command -v ffmpeg)
 FFPROBE=$(command -v ffprobe)
 MP4CHAPS=$(command -v mp4chaps)
 MP4ART=$(command -v mp4art)
-readonly FFMPEG FFPROBE MP4CHAPS MP4ART
+BC=$(command -v bc)
+readonly FFMPEG FFPROBE MP4CHAPS MP4ART BC
 
 # libfdk_acc VBR Quality Profiles
 # Profile  | Bitrate (kbps) | Description
@@ -421,7 +422,7 @@ function combine {
 
   if ${FFMPEG} -v fatal -f concat -safe 0 -i "${file_order}" -c copy "${m4a_file}" -y > >(capture_errors) 2>&1; then
     echo -e "${COLORS[SUCCESS]}Audio files merged successfully.${NC}"
-    INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | bc) # MB
+    INFO_TOTAL_SIZE=$(echo "scale=0; $(stat -c%s "${m4a_file}") / 1024^2" | ${BC}) # MB
   else
     echo -e "${COLORS[ERROR]}Failed to merge audio files!${NC}"
     exit 1
@@ -484,14 +485,14 @@ function process_file_as_chapter {
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(LC_NUMERIC="C" printf "%02d:%02d:%06.3f\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)" \
-      "$(echo "${current_time} % 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})" \
+      "$(echo "${current_time} % 60" | ${BC})")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
 
     duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
-    current_time=$(echo "${current_time} + ${duration}" | bc)
+    current_time=$(echo "${current_time} + ${duration}" | ${BC})
     i=$((i + 1))
 
     echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
@@ -499,8 +500,8 @@ function process_file_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})")
 }
 
 function process_dirs_as_chapter {
@@ -536,18 +537,18 @@ function process_dirs_as_chapter {
       convert "${file}" "${output_m4a}" "${bitrate}" "${rel_path}"
 
       duration=$( ${FFPROBE} -v quiet -show_entries format=duration "${output_m4a}" -of csv="p=0" )
-      chapter_duration=$(echo "${chapter_duration} + ${duration}" | bc)
+      chapter_duration=$(echo "${chapter_duration} + ${duration}" | ${BC})
     done
 
     # Format the timestamp with hours potentially exceeding 24
     timestamp=$(LC_NUMERIC="C" printf "%02d:%02d:%06.3f\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)" \
-      "$(echo "${current_time} % 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})" \
+      "$(echo "${current_time} % 60" | ${BC})")
     echo "CHAPTER${i}=${timestamp}" >> "${file_chapter}"
     echo "CHAPTER${i}NAME=${chapter_name}" >> "${file_chapter}"
      
-    current_time=$(echo "${current_time} + ${chapter_duration}" | bc)
+    current_time=$(echo "${current_time} + ${chapter_duration}" | ${BC})
     i=$((i + 1))
 
     echo -e "${COLORS[NEWCHAP]}Added chapter '${chapter_name}' @ ${timestamp}${NC}"
@@ -555,9 +556,13 @@ function process_dirs_as_chapter {
   done
 
   INFO_TOTAL_DURATION=$(printf "%02d hours %02d minutes\n" \
-      "$(echo "${current_time} / 3600" | bc)" \
-      "$(echo "${current_time} % 3600 / 60" | bc)")
+      "$(echo "${current_time} / 3600" | ${BC})" \
+      "$(echo "${current_time} % 3600 / 60" | ${BC})")
 }
+
+# ===========================
+######## Main Script ########
+# ===========================
 
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
 BITRATE="vbr"             # Default is VBR
@@ -571,24 +576,48 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-# Required positional argument: audiobook directory
+# ---
+# Check if the required audiobook directory argument is provided
 if [[ "$#" -lt 1 ]]; then
   echo -e "\n${COLORS[ERROR]}Error: Input directory is required.\n${NC}"
   print_usage
   exit 1
 fi
 
+# ---
+# Check for unrecognized extra arguments
 if [[ "$#" -gt 1 ]]; then
   echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.\n${NC}"
   print_usage
   exit 1
 fi
 
-if [[ -z "${FFMPEG}" || -z "${FFPROBE}" || -z "${MP4CHAPS}" || -z "${MP4ART}" ]]; then
-  echo -e "${COLORS[ERROR]}Missing required binaries: ffmpeg, ffprobe, mp4chaps, mp4art.${NC}"
+# ---
+# Check for required binaries
+declare -A REQUIRED=(
+  [ffmpeg]="${FFMPEG}"
+  [ffprobe]="${FFPROBE}"
+  [mp4chaps]="${MP4CHAPS}"
+  [mp4art]="${MP4ART}"
+  [bc]="${BC}"
+)
+
+missing=()
+
+for bin in "${!REQUIRED[@]}"; do
+  [[ -z "${REQUIRED[$bin]:-}" ]] && missing+=("$bin")
+done
+
+if (( ${#missing[@]} > 0 )); then
+  echo -e "${COLORS[ERROR]}The following dependencies are missing:${NC}"
+  for bin in "${missing[@]}"; do
+    echo -e "  ${COLORS[WARN]} ${bin}${NC}"
+  done
   exit 1
 fi
 
+# ---
+# Check if the input directory exists
 INPUT_DIR="$(realpath "$1")"
 OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
 readonly INPUT_DIR OUTPUT_FILE
@@ -598,18 +627,24 @@ if [[ ! -d "${INPUT_DIR}" ]]; then
   exit 1
 fi
 
-FFMPEG_VERSION=$(ffmpeg -version | head -n 1 | awk '{print $3}')
-FFPROBE_VERSION=$(ffprobe -version | head -n 1 | awk '{print $3}')
-MP4CHAPS_VERSION=$(mp4chaps --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
-MP4ART_VERSION=$(mp4art --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+# ---
+# Get versions of the tools
+FFMPEG_VERSION=$(${FFMPEG} -version | head -n 1 | awk '{print $3}')
+FFPROBE_VERSION=$(${FFPROBE} -version | head -n 1 | awk '{print $3}')
+MP4CHAPS_VERSION=$(${MP4CHAPS} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
+MP4ART_VERSION=$(${MP4ART} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 readonly FFMPEG_VERSION FFPROBE_VERSION MP4CHAPS_VERSION MP4ART_VERSION
 
+# ---
+# Check if ffmpeg is built with libfdk_aac support
 FFMPEG_OPTIONS=""
 if ${FFMPEG} -version | grep -q "enable-libfdk-aac"; then
   FFMPEG_OPTIONS=" (libfdk_aac)"
 fi
 readonly FFMPEG_OPTIONS
 
+# ---
+# Create temporary files for processing
 TEMP_DIR=$(mktemp -d)
 FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
 FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
@@ -621,6 +656,8 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 touch "${FILE_CHAPTER}"
 touch "${FILE_ORDER}"
 
+# ---
+# Display environment and configuration summary
 echo -e "\n${COLORS[SECTION]}Detecting Environment...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}m4bify:${NC} ${VERSION}"
@@ -635,6 +672,8 @@ echo -e "${COLORS[INFO]}Source Directory:${NC} ${INPUT_DIR}"
 echo -e "${COLORS[INFO]}Output File:${NC} ${OUTPUT_FILE}"
 echo -e "${COLORS[INFO]}Bitrate:${NC} ${BITRATE}"
 
+# ---
+# Process audio files and create chapters based on the selected mode
 if ${CHAPTERS_FROM_DIRS}; then
   echo -e "${COLORS[INFO]}Mode:${NC} Directory-based chapters"
   process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
@@ -646,6 +685,7 @@ fi
 echo -e "\n${COLORS[SECTION]}Merging Audio Files...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Combine all M4A files into a single file
 combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 
@@ -653,18 +693,22 @@ echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}Processing Metadata...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Add chapters to the final file
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 echo -e "---"
 
+# ---
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 echo -e "---"
 
+# ---
 # Add book description (if available)
 add_description "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 echo -e "---"
 
+# ---
 # Add audiobook ID3 tags
 add_metadata "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
@@ -672,9 +716,12 @@ echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}Finalizing...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
+# ---
+# Display final summary
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}M4B Audiobook Summary:${NC}"
