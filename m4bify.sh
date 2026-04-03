@@ -177,6 +177,12 @@ function print_usage {
   echo -e "    ${COLORS[CMD]}ffprobe${NC}      - Used for analyzing audio file properties."
   echo -e "    ${COLORS[CMD]}mp4chaps${NC}     - Needed for chapter metadata manipulation."
   echo -e "    ${COLORS[CMD]}mp4art${NC}       - Adds cover image to audio book."
+  echo -e "    ${COLORS[CMD]}awk${NC}          - Text processing."
+  echo -e "    ${COLORS[CMD]}sed${NC}          - Stream editing."
+  echo -e "    ${COLORS[CMD]}bc${NC}           - Arithmetic operations."
+  echo -e ""
+  echo -e "  Optional:"
+  echo -e "    ${COLORS[CMD]}libfdk_aac${NC}   - Enables higher-quality VBR encoding (via ffmpeg)."
   echo -e ""
 }
 
