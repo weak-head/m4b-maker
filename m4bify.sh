@@ -560,6 +560,10 @@ function process_dirs_as_chapter {
       "$(echo "${current_time} % 3600 / 60" | ${BC})")
 }
 
+# ===========================
+######## Main Script ########
+# ===========================
+
 CHAPTERS_FROM_DIRS=false  # Default is chapter from file
 BITRATE="vbr"             # Default is VBR
 
@@ -572,19 +576,23 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-# Required positional argument: audiobook directory
+# ---
+# Check if the required audiobook directory argument is provided
 if [[ "$#" -lt 1 ]]; then
   echo -e "\n${COLORS[ERROR]}Error: Input directory is required.\n${NC}"
   print_usage
   exit 1
 fi
 
+# ---
+# Check for unrecognized extra arguments
 if [[ "$#" -gt 1 ]]; then
   echo -e "\n${COLORS[ERROR]}Error: Unrecognized extra arguments.\n${NC}"
   print_usage
   exit 1
 fi
 
+# ---
 # Check for required binaries
 declare -A REQUIRED=(
   [ffmpeg]="${FFMPEG}"
@@ -608,7 +616,8 @@ if (( ${#missing[@]} > 0 )); then
   exit 1
 fi
 
-
+# ---
+# Check if the input directory exists
 INPUT_DIR="$(realpath "$1")"
 OUTPUT_FILE="$(dirname "${INPUT_DIR}")/$(basename "${INPUT_DIR}").m4b"
 readonly INPUT_DIR OUTPUT_FILE
@@ -618,18 +627,24 @@ if [[ ! -d "${INPUT_DIR}" ]]; then
   exit 1
 fi
 
+# ---
+# Get versions of the tools
 FFMPEG_VERSION=$(${FFMPEG} -version | head -n 1 | awk '{print $3}')
 FFPROBE_VERSION=$(${FFPROBE} -version | head -n 1 | awk '{print $3}')
 MP4CHAPS_VERSION=$(${MP4CHAPS} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 MP4ART_VERSION=$(${MP4ART} --version 2>&1 | grep -oP 'MP4v2 \K[^\s]+')
 readonly FFMPEG_VERSION FFPROBE_VERSION MP4CHAPS_VERSION MP4ART_VERSION
 
+# ---
+# Check if ffmpeg is built with libfdk_aac support
 FFMPEG_OPTIONS=""
 if ${FFMPEG} -version | grep -q "enable-libfdk-aac"; then
   FFMPEG_OPTIONS=" (libfdk_aac)"
 fi
 readonly FFMPEG_OPTIONS
 
+# ---
+# Create temporary files for processing
 TEMP_DIR=$(mktemp -d)
 FINAL_M4A_FILE="${TEMP_DIR}/${FINAL_M4A_FILENAME}"
 FILE_CHAPTER="${TEMP_DIR}/${CHAPTER_FILENAME}"
@@ -641,6 +656,8 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 touch "${FILE_CHAPTER}"
 touch "${FILE_ORDER}"
 
+# ---
+# Display environment and configuration summary
 echo -e "\n${COLORS[SECTION]}Detecting Environment...${NC}"
 echo -e "-----------------------------------------"
 echo -e "${COLORS[INFO]}m4bify:${NC} ${VERSION}"
@@ -655,6 +672,8 @@ echo -e "${COLORS[INFO]}Source Directory:${NC} ${INPUT_DIR}"
 echo -e "${COLORS[INFO]}Output File:${NC} ${OUTPUT_FILE}"
 echo -e "${COLORS[INFO]}Bitrate:${NC} ${BITRATE}"
 
+# ---
+# Process audio files and create chapters based on the selected mode
 if ${CHAPTERS_FROM_DIRS}; then
   echo -e "${COLORS[INFO]}Mode:${NC} Directory-based chapters"
   process_dirs_as_chapter "${TEMP_DIR}" "${INPUT_DIR}" "${BITRATE}" "${FILE_ORDER}" "${FILE_CHAPTER}"
@@ -666,6 +685,7 @@ fi
 echo -e "\n${COLORS[SECTION]}Merging Audio Files...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Combine all M4A files into a single file
 combine "${FILE_ORDER}" "${FINAL_M4A_FILE}"
 
@@ -673,18 +693,22 @@ echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}Processing Metadata...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Add chapters to the final file
 add_chapters "${TEMP_DIR}" "${FINAL_M4A_FILE}"
 echo -e "---"
 
+# ---
 # Add cover image (if available)
 add_cover_image "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 echo -e "---"
 
+# ---
 # Add book description (if available)
 add_description "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 echo -e "---"
 
+# ---
 # Add audiobook ID3 tags
 add_metadata "${FINAL_M4A_FILE}" "${INPUT_DIR}" "${TEMP_DIR}"
 
@@ -692,9 +716,12 @@ echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}Finalizing...${NC}"
 echo -e "-----------------------------------------"
 
+# ---
 # Move the created audiobook to the destination
 move_audiobook "${FINAL_M4A_FILE}" "${OUTPUT_FILE}"
 
+# ---
+# Display final summary
 echo -e "${COLORS[SUCCESS]}Audiobook creation complete!${NC}"
 echo -e "-----------------------------------------"
 echo -e "\n${COLORS[SECTION]}M4B Audiobook Summary:${NC}"
