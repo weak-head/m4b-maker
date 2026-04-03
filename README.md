@@ -47,21 +47,16 @@ Scan a root directory for audiobook folders and convert them to M4B files in par
 
 The following tools must be installed and available in `PATH`:
 
-- [ffmpeg](https://ffmpeg.org)
-- [mp4v2](https://mp4v2.org/)
+- [ffmpeg](https://ffmpeg.org) *(optionally with [libfdk_aac](https://github.com/mstorsjo/fdk-aac) for higher-quality VBR encoding)*
+- [mp4v2](https://mp4v2.org/) *(mp4chaps, mp4art)*
 - [awk](https://linux.die.net/man/1/awk), [sed](https://linux.die.net/man/1/sed), [bc](https://linux.die.net/man/1/bc)
 
-**Optional:**  
-
-`ffmpeg` with [libfdk_aac](https://github.com/mstorsjo/fdk-aac) enables higher-quality VBR encoding.
-
-**Installation:**
+*Installation:*
 
 ```bash
+# Installs to /usr/local/sbin/
 make install
 ```
-
-Installs scripts to `/usr/local/sbin/`.
 
 ## m4bify
 
@@ -86,7 +81,7 @@ m4bify [--help] [-d | --chapters-from-dirs] [-b <bitrate> | --bitrate <bitrate>]
 - `-d`, `--chapters-from-dirs`: Treats each top-level subdirectory as a chapter.
 - `-b <value>`, `--bitrate <value>`: Sets the audio encoding bitrate. Supported values:
   - `<num>k` - Fixed bitrate (e.g. "32k", "128k")
-  - `vbr` - VBR Very High (This is the default option)
+  - `vbr` - VBR Very High *(default)*
   - `alac` - [Apple Lossless Audio Codec](https://en.wikipedia.org/wiki/Apple_Lossless_Audio_Codec)
 - `--help`: Displays usage instructions and exits.
 
