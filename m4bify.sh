@@ -40,7 +40,7 @@
 # - mp4chaps     For adding chapter metadata to the final M4B file.
 # - mp4art       For adding in a cover image to the final M4A file before converting it to M4B.
 
-readonly VERSION="v0.3.7"
+readonly VERSION="v0.3.8"
 
 # Color schema for pretty print
 readonly NC='\033[0m'           # No Color
@@ -177,6 +177,12 @@ function print_usage {
   echo -e "    ${COLORS[CMD]}ffprobe${NC}      - Used for analyzing audio file properties."
   echo -e "    ${COLORS[CMD]}mp4chaps${NC}     - Needed for chapter metadata manipulation."
   echo -e "    ${COLORS[CMD]}mp4art${NC}       - Adds cover image to audio book."
+  echo -e "    ${COLORS[CMD]}awk${NC}          - Text processing."
+  echo -e "    ${COLORS[CMD]}sed${NC}          - Stream editing."
+  echo -e "    ${COLORS[CMD]}bc${NC}           - Arithmetic operations."
+  echo -e ""
+  echo -e "  Optional:"
+  echo -e "    ${COLORS[CMD]}libfdk_aac${NC}   - Enables higher-quality VBR encoding (via ffmpeg)."
   echo -e ""
 }
 
